@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,12 +30,12 @@ import 'text_style.dart';
 /// span in a widget, use a [RichText]. For text with a single style, consider
 /// using the [Text] widget.
 ///
-/// {@tool sample}
+/// {@tool snippet}
 ///
 /// The text "Hello world!", in black:
 ///
 /// ```dart
-/// TextSpan(
+/// const TextSpan(
 ///   text: 'Hello world!',
 ///   style: TextStyle(color: Colors.black),
 /// )
@@ -60,7 +60,7 @@ import 'text_style.dart';
 ///  * [RichText], a widget for finer control of text rendering.
 ///  * [TextPainter], a class for painting [TextSpan] objects on a [Canvas].
 @immutable
-class TextSpan extends InlineSpan {
+class TextSpan extends InlineSpan implements HitTestTarget, MouseTrackerAnnotation {
   /// Creates a [TextSpan] with the given values.
   ///
   /// For the object to be useful, at least one of [text] or
@@ -68,10 +68,16 @@ class TextSpan extends InlineSpan {
   const TextSpan({
     this.text,
     this.children,
-    TextStyle style,
+    TextStyle? style,
     this.recognizer,
+    MouseCursor? mouseCursor,
+    this.onEnter,
+    this.onExit,
     this.semanticsLabel,
-  }) : super(style: style,);
+  }) : mouseCursor = mouseCursor ??
+         (recognizer == null ? MouseCursor.defer : SystemMouseCursors.click),
+       assert(!(text == null && semanticsLabel != null)),
+       super(style: style);
 
   /// The text contained in this span.
   ///
@@ -79,9 +85,7 @@ class TextSpan extends InlineSpan {
   /// children.
   ///
   /// This getter does not include the contents of its children.
-  @override
-  final String text;
-
+  final String? text;
 
   /// Additional spans to include as children.
   ///
@@ -92,8 +96,7 @@ class TextSpan extends InlineSpan {
   /// and may have unexpected results.
   ///
   /// The list must not contain any nulls.
-  @override
-  final List<InlineSpan> children;
+  final List<InlineSpan>? children;
 
   /// A gesture recognizer that will receive events that hit this span.
   ///
@@ -110,22 +113,25 @@ class TextSpan extends InlineSpan {
   /// [GestureRecognizer.dispose] when the [InlineSpan] object is no longer
   /// used.
   ///
-  /// {@tool sample}
+  /// {@tool snippet}
   ///
   /// This example shows how to manage the lifetime of a gesture recognizer
   /// provided to an [InlineSpan] object. It defines a `BuzzingText` widget
   /// which uses the [HapticFeedback] class to vibrate the device when the user
   /// long-presses the "find the" span, which is underlined in wavy green. The
-  /// hit-testing is handled by the [RichText] widget.
+  /// hit-testing is handled by the [RichText] widget. It also changes the
+  /// hovering mouse cursor to `precise`.
   ///
   /// ```dart
   /// class BuzzingText extends StatefulWidget {
+  ///   const BuzzingText({Key? key}) : super(key: key);
+  ///
   ///   @override
   ///   _BuzzingTextState createState() => _BuzzingTextState();
   /// }
   ///
   /// class _BuzzingTextState extends State<BuzzingText> {
-  ///   LongPressGestureRecognizer _longPressRecognizer;
+  ///   late LongPressGestureRecognizer _longPressRecognizer;
   ///
   ///   @override
   ///   void initState() {
@@ -149,18 +155,19 @@ class TextSpan extends InlineSpan {
   ///     return Text.rich(
   ///       TextSpan(
   ///         text: 'Can you ',
-  ///         style: TextStyle(color: Colors.black),
+  ///         style: const TextStyle(color: Colors.black),
   ///         children: <InlineSpan>[
   ///           TextSpan(
   ///             text: 'find the',
-  ///             style: TextStyle(
+  ///             style: const TextStyle(
   ///               color: Colors.green,
   ///               decoration: TextDecoration.underline,
   ///               decorationStyle: TextDecorationStyle.wavy,
   ///             ),
   ///             recognizer: _longPressRecognizer,
+  ///             mouseCursor: SystemMouseCursors.precise,
   ///           ),
-  ///           TextSpan(
+  ///           const TextSpan(
   ///             text: ' secret?',
   ///           ),
   ///         ],
@@ -170,8 +177,33 @@ class TextSpan extends InlineSpan {
   /// }
   /// ```
   /// {@end-tool}
+  final GestureRecognizer? recognizer;
+
+  /// Mouse cursor when the mouse hovers over this span.
+  ///
+  /// The default value is [SystemMouseCursors.click] if [recognizer] is not
+  /// null, or [MouseCursor.defer] otherwise.
+  ///
+  /// [TextSpan] itself does not implement hit testing or cursor changing.
+  /// The object that manages the [TextSpan] painting is responsible
+  /// to return the [TextSpan] in its hit test, as well as providing the
+  /// correct mouse cursor when the [TextSpan]'s mouse cursor is
+  /// [MouseCursor.defer].
+  final MouseCursor mouseCursor;
+
   @override
-  final GestureRecognizer recognizer;
+  final PointerEnterEventListener? onEnter;
+
+  @override
+  final PointerExitEventListener? onExit;
+
+  /// Returns the value of [mouseCursor].
+  ///
+  /// This field, required by [MouseTrackerAnnotation], is hidden publicly to
+  /// avoid the confusion as a text cursor.
+  @protected
+  @override
+  MouseCursor get cursor => mouseCursor;
 
   /// An alternative semantics label for this [TextSpan].
   ///
@@ -184,7 +216,16 @@ class TextSpan extends InlineSpan {
   /// ```dart
   /// TextSpan(text: r'$$', semanticsLabel: 'Double dollars')
   /// ```
-  final String semanticsLabel;
+  final String? semanticsLabel;
+
+  @override
+  bool get validForMouseTracker => true;
+
+  @override
+  void handleEvent(PointerEvent event, HitTestEntry entry) {
+    if (event is PointerDownEvent)
+      recognizer?.addPointer(event);
+  }
 
   /// Apply the [style], [text], and [children] of this object to the
   /// given [ParagraphBuilder], from which a [Paragraph] can be obtained.
@@ -197,16 +238,16 @@ class TextSpan extends InlineSpan {
   void build(
     ui.ParagraphBuilder builder, {
     double textScaleFactor = 1.0,
-    List<PlaceholderDimensions> dimensions,
+    List<PlaceholderDimensions>? dimensions,
   }) {
     assert(debugAssertIsValid());
     final bool hasStyle = style != null;
     if (hasStyle)
-      builder.pushStyle(style.getTextStyle(textScaleFactor: textScaleFactor));
+      builder.pushStyle(style!.getTextStyle(textScaleFactor: textScaleFactor));
     if (text != null)
-      builder.addText(text);
+      builder.addText(text!);
     if (children != null) {
-      for (InlineSpan child in children) {
+      for (final InlineSpan child in children!) {
         assert(child != null);
         child.build(
           builder,
@@ -231,35 +272,8 @@ class TextSpan extends InlineSpan {
         return false;
     }
     if (children != null) {
-      for (InlineSpan child in children) {
+      for (final InlineSpan child in children!) {
         if (!child.visitChildren(visitor))
-          return false;
-      }
-    }
-    return true;
-  }
-
-  // TODO(garyq): Remove this after next stable release.
-  /// Walks this [TextSpan] and any descendants in pre-order and calls `visitor`
-  /// for each span that has content.
-  ///
-  /// When `visitor` returns true, the walk will continue. When `visitor`
-  /// returns false, then the walk will end.
-  @override
-  @Deprecated('Use to visitChildren instead')
-  bool visitTextSpan(bool visitor(TextSpan span)) {
-    if (text != null) {
-      if (!visitor(this))
-        return false;
-    }
-    if (children != null) {
-      for (InlineSpan child in children) {
-        assert(
-          child is TextSpan,
-          'visitTextSpan is deprecated. Use visitChildren to support InlineSpans',
-        );
-        final TextSpan textSpanChild = child;
-        if (!textSpanChild.visitTextSpan(visitor))
           return false;
       }
     }
@@ -268,19 +282,19 @@ class TextSpan extends InlineSpan {
 
   /// Returns the text span that contains the given position in the text.
   @override
-  InlineSpan getSpanForPositionVisitor(TextPosition position, Accumulator offset) {
+  InlineSpan? getSpanForPositionVisitor(TextPosition position, Accumulator offset) {
     if (text == null) {
       return null;
     }
     final TextAffinity affinity = position.affinity;
     final int targetOffset = position.offset;
-    final int endOffset = offset.value + text.length;
+    final int endOffset = offset.value + text!.length;
     if (offset.value == targetOffset && affinity == TextAffinity.downstream ||
         offset.value < targetOffset && targetOffset < endOffset ||
         endOffset == targetOffset && affinity == TextAffinity.upstream) {
       return this;
     }
-    offset.increment(text.length);
+    offset.increment(text!.length);
     return null;
   }
 
@@ -288,7 +302,7 @@ class TextSpan extends InlineSpan {
   void computeToPlainText(
     StringBuffer buffer, {
     bool includeSemanticsLabels = true,
-    bool includePlaceholders = true
+    bool includePlaceholders = true,
   }) {
     assert(debugAssertIsValid());
     if (semanticsLabel != null && includeSemanticsLabels) {
@@ -297,7 +311,7 @@ class TextSpan extends InlineSpan {
       buffer.write(text);
     }
     if (children != null) {
-      for (InlineSpan child in children) {
+      for (final InlineSpan child in children!) {
         child.computeToPlainText(buffer,
           includeSemanticsLabels: includeSemanticsLabels,
           includePlaceholders: includePlaceholders,
@@ -309,44 +323,52 @@ class TextSpan extends InlineSpan {
   @override
   void computeSemanticsInformation(List<InlineSpanSemanticsInformation> collector) {
     assert(debugAssertIsValid());
-    if (text != null || semanticsLabel != null) {
+    if (text != null) {
       collector.add(InlineSpanSemanticsInformation(
-        text,
+        text!,
         semanticsLabel: semanticsLabel,
         recognizer: recognizer,
       ));
     }
     if (children != null) {
-      for (InlineSpan child in children) {
+      for (final InlineSpan child in children!) {
         child.computeSemanticsInformation(collector);
       }
     }
   }
 
   @override
-  int codeUnitAtVisitor(int index, Accumulator offset) {
+  int? codeUnitAtVisitor(int index, Accumulator offset) {
     if (text == null) {
       return null;
     }
-    if (index - offset.value < text.length) {
-      return text.codeUnitAt(index - offset.value);
+    if (index - offset.value < text!.length) {
+      return text!.codeUnitAt(index - offset.value);
     }
-    offset.increment(text.length);
+    offset.increment(text!.length);
     return null;
   }
 
-  @override
+  /// Populates the `semanticsOffsets` and `semanticsElements` with the appropriate data
+  /// to be able to construct a [SemanticsNode].
+  ///
+  /// If applicable, the beginning and end text offset are added to [semanticsOffsets].
+  /// [PlaceholderSpan]s have a text length of 1, which corresponds to the object
+  /// replacement character (0xFFFC) that is inserted to represent it.
+  ///
+  /// Any [GestureRecognizer]s are added to `semanticsElements`. Null is added to
+  /// `semanticsElements` for [PlaceholderSpan]s.
   void describeSemantics(Accumulator offset, List<int> semanticsOffsets, List<dynamic> semanticsElements) {
     if (
       recognizer != null &&
       (recognizer is TapGestureRecognizer || recognizer is LongPressGestureRecognizer)
     ) {
-      final int length = semanticsLabel?.length ?? text.length;
+      final int length = semanticsLabel?.length ?? text!.length;
       semanticsOffsets.add(offset.value);
       semanticsOffsets.add(offset.value + length);
       semanticsElements.add(recognizer);
     }
-    offset.increment(text != null ? text.length : 0);
+    offset.increment(text != null ? text!.length : 0);
   }
 
   /// In checked mode, throws an exception if the object is not in a valid
@@ -361,13 +383,19 @@ class TextSpan extends InlineSpan {
   bool debugAssertIsValid() {
     assert(() {
       if (children != null) {
-        for (InlineSpan child in children) {
-          assert(child != null,
-            'TextSpan contains a null child.\n...'
-            'A TextSpan object with a non-null child list should not have any nulls in its child list.\n'
-            'The full text in question was:\n'
-            '${toStringDeep(prefixLineOne: '  ')}'
-          );
+        for (final InlineSpan child in children!) {
+          if (child == null) {
+            throw FlutterError.fromParts(<DiagnosticsNode>[
+              ErrorSummary('TextSpan contains a null child.'),
+              ErrorDescription(
+                'A TextSpan object with a non-null child list should not have any nulls in its child list.',
+              ),
+              toDiagnosticsNode(
+                name: 'The full text in question was',
+                style: DiagnosticsTreeStyle.errorProperty,
+              ),
+            ]);
+          }
           assert(child.debugAssertIsValid());
         }
       }
@@ -382,7 +410,7 @@ class TextSpan extends InlineSpan {
       return RenderComparison.identical;
     if (other.runtimeType != runtimeType)
       return RenderComparison.layout;
-    final TextSpan textSpan = other;
+    final TextSpan textSpan = other as TextSpan;
     if (textSpan.text != text ||
         children?.length != textSpan.children?.length ||
         (style == null) != (textSpan.style == null))
@@ -391,15 +419,15 @@ class TextSpan extends InlineSpan {
       RenderComparison.identical :
       RenderComparison.metadata;
     if (style != null) {
-      final RenderComparison candidate = style.compareTo(textSpan.style);
+      final RenderComparison candidate = style!.compareTo(textSpan.style!);
       if (candidate.index > result.index)
         result = candidate;
       if (result == RenderComparison.layout)
         return result;
     }
     if (children != null) {
-      for (int index = 0; index < children.length; index += 1) {
-        final RenderComparison candidate = children[index].compareTo(textSpan.children[index]);
+      for (int index = 0; index < children!.length; index += 1) {
+        final RenderComparison candidate = children![index].compareTo(textSpan.children![index]);
         if (candidate.index > result.index)
           result = candidate;
         if (result == RenderComparison.layout)
@@ -410,18 +438,21 @@ class TextSpan extends InlineSpan {
   }
 
   @override
-  bool operator ==(dynamic other) {
+  bool operator ==(Object other) {
     if (identical(this, other))
       return true;
     if (other.runtimeType != runtimeType)
       return false;
     if (super != other)
       return false;
-    final TextSpan typedOther = other;
-    return typedOther.text == text
-        && typedOther.recognizer == recognizer
-        && typedOther.semanticsLabel == semanticsLabel
-        && listEquals<InlineSpan>(typedOther.children, children);
+    return other is TextSpan
+        && other.text == text
+        && other.recognizer == recognizer
+        && other.semanticsLabel == semanticsLabel
+        && onEnter == other.onEnter
+        && onExit == other.onExit
+        && mouseCursor == other.mouseCursor
+        && listEquals<InlineSpan>(other.children, children);
   }
 
   @override
@@ -430,11 +461,14 @@ class TextSpan extends InlineSpan {
     text,
     recognizer,
     semanticsLabel,
+    onEnter,
+    onExit,
+    mouseCursor,
     hashList(children),
   );
 
   @override
-  String toStringShort() => '$runtimeType';
+  String toStringShort() => objectRuntimeType(this, 'TextSpan');
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -446,16 +480,25 @@ class TextSpan extends InlineSpan {
         text,
         showName: false,
         defaultValue: null,
-      )
+      ),
     );
     if (style == null && text == null && children == null)
       properties.add(DiagnosticsNode.message('(empty)'));
 
     properties.add(DiagnosticsProperty<GestureRecognizer>(
       'recognizer', recognizer,
-      description: recognizer?.runtimeType?.toString(),
+      description: recognizer?.runtimeType.toString(),
       defaultValue: null,
     ));
+
+    properties.add(FlagsSummary<Function?>(
+      'callbacks',
+      <String, Function?> {
+        'enter': onEnter,
+        'exit': onExit,
+      },
+    ));
+    properties.add(DiagnosticsProperty<MouseCursor>('mouseCursor', cursor, defaultValue: MouseCursor.defer));
 
     if (semanticsLabel != null) {
       properties.add(StringProperty('semanticsLabel', semanticsLabel));
@@ -466,7 +509,10 @@ class TextSpan extends InlineSpan {
   List<DiagnosticsNode> debugDescribeChildren() {
     if (children == null)
       return const <DiagnosticsNode>[];
-    return children.map<DiagnosticsNode>((InlineSpan child) {
+    return children!.map<DiagnosticsNode>((InlineSpan child) {
+      // `child` has a non-nullable return type, but might be null when running
+      // with weak checking, so we need to null check it anyway (and ignore the
+      // warning that the null-handling logic is dead code).
       if (child != null) {
         return child.toDiagnosticsNode();
       } else {

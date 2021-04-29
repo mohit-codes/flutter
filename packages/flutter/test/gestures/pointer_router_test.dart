@@ -1,10 +1,10 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math_64.dart';
 
 void main() {
@@ -134,7 +134,7 @@ void main() {
       log.add('per-pointer 3');
     });
 
-    final FlutterExceptionHandler previousErrorHandler = FlutterError.onError;
+    final FlutterExceptionHandler? previousErrorHandler = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       log.add('error report');
     };
@@ -151,11 +151,22 @@ void main() {
     FlutterError.onError = previousErrorHandler;
   });
 
+  test('Exceptions include router, route & event', () {
+    try {
+      final PointerRouter router = PointerRouter();
+      router.addRoute(2, (PointerEvent event) => throw 'Pointer exception');
+    } catch (e) {
+      expect(e, contains('router: Instance of \'PointerRouter\''));
+      expect(e, contains('route: Closure: (PointerEvent) => Null'));
+      expect(e, contains('event: PointerDownEvent#[a-zA-Z0-9]{5}(position: Offset(0.0, 0.0))'));
+    }
+  });
+
   test('Should transform events', () {
     final List<PointerEvent> events = <PointerEvent>[];
     final List<PointerEvent> globalEvents = <PointerEvent>[];
     final PointerRouter router = PointerRouter();
-    final Matrix4 transform = (Matrix4.identity()..scale(1 / 2.0, 1 / 2.0, 1.0)) * Matrix4.translationValues(-10, -30, 0);
+    final Matrix4 transform = (Matrix4.identity()..scale(1 / 2.0, 1 / 2.0, 1.0)).multiplied(Matrix4.translationValues(-10, -30, 0));
 
     router.addRoute(1, (PointerEvent event) {
       events.add(event);

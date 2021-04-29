@@ -1,9 +1,8 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,6 +10,7 @@ import '../rendering/mock_canvas.dart';
 import '../widgets/test_border.dart' show TestBorder;
 
 class NotifyMaterial extends StatelessWidget {
+  const NotifyMaterial({ Key? key }) : super(key: key);
   @override
   Widget build(BuildContext context) {
     LayoutChangedNotification().dispatch(context);
@@ -81,6 +81,7 @@ void main() {
     const Material(
       type: MaterialType.canvas,
       color: Color(0xFFFFFFFF),
+      shadowColor: Color(0xffff0000),
       textStyle: TextStyle(color: Color(0xff00ff00)),
       borderRadius: BorderRadiusDirectional.all(Radius.circular(10)),
     ).debugFillProperties(builder);
@@ -93,6 +94,7 @@ void main() {
     expect(description, <String>[
       'type: canvas',
       'color: Color(0xffffffff)',
+      'shadowColor: Color(0xffff0000)',
       'textStyle.inherit: true',
       'textStyle.color: Color(0xff00ff00)',
       'borderRadius: BorderRadiusDirectional.circular(10.0)',
@@ -101,7 +103,7 @@ void main() {
 
   testWidgets('LayoutChangedNotification test', (WidgetTester tester) async {
     await tester.pumpWidget(
-      Material(
+      const Material(
         child: NotifyMaterial(),
       ),
     );
@@ -180,11 +182,11 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 1));
     final RenderPhysicalShape modelC = getModel(tester);
-    expect(modelC.elevation, closeTo(0.0, 0.001));
+    expect(modelC.elevation, moreOrLessEquals(0.0, epsilon: 0.001));
 
     await tester.pump(kThemeChangeDuration ~/ 2);
     final RenderPhysicalShape modelD = getModel(tester);
-    expect(modelD.elevation, isNot(closeTo(0.0, 0.001)));
+    expect(modelD.elevation, isNot(moreOrLessEquals(0.0, epsilon: 0.001)));
 
     await tester.pump(kThemeChangeDuration);
     final RenderPhysicalShape modelE = getModel(tester);
@@ -214,6 +216,36 @@ void main() {
     await tester.pump(kThemeChangeDuration);
     final RenderPhysicalShape modelE = getModel(tester);
     expect(modelE.shadowColor, equals(const Color(0xFFFF0000)));
+  });
+
+  testWidgets('Transparent material widget does not absorb hit test', (WidgetTester tester) async {
+    // This is a regression test for https://github.com/flutter/flutter/issues/58665.
+    bool pressed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: <Widget>[
+              ElevatedButton(
+                onPressed: () {
+                  pressed = true;
+                },
+                child: null,
+              ),
+              const Material(
+                type: MaterialType.transparency,
+                child: SizedBox(
+                  width: 400.0,
+                  height: 500.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(ElevatedButton));
+    expect(pressed, isTrue);
   });
 
   group('Elevation Overlay', () {
@@ -250,7 +282,7 @@ void main() {
         ElevationColor(24.0, Color(0xFF20362B)),
       ];
 
-      for (ElevationColor test in elevationColors) {
+      for (final ElevationColor test in elevationColors) {
         await tester.pumpWidget(
             Theme(
               data: ThemeData(
@@ -272,23 +304,92 @@ void main() {
       }
     });
 
-    testWidgets('overlay will only apply to materials using colorScheme.surface', (WidgetTester tester) async {
+    testWidgets('overlay will not apply to materials using a non-surface color', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        Theme(
+          data: ThemeData(
+            applyElevationOverlayColor: true,
+            colorScheme: const ColorScheme.dark(),
+          ),
+          child: buildMaterial(
+            color: Colors.cyan,
+            elevation: 8.0,
+          ),
+        ),
+      );
+      final RenderPhysicalShape model = getModel(tester);
+      // Shouldn't change, as it is not using a ColorScheme.surface color
+      expect(model.color, equals(Colors.cyan));
+    });
+
+    testWidgets('overlay will not apply to materials using a light theme', (WidgetTester tester) async {
       await tester.pumpWidget(
           Theme(
             data: ThemeData(
               applyElevationOverlayColor: true,
-              colorScheme: const ColorScheme.dark().copyWith(surface: const Color(0xFF121212)),
+              colorScheme: const ColorScheme.light(),
             ),
             child: buildMaterial(
-                color: Colors.cyan,
-                elevation: 8.0,
+              color: Colors.cyan,
+              elevation: 8.0,
             ),
           ),
       );
       final RenderPhysicalShape model = getModel(tester);
+      // Shouldn't change, as it was under a light color scheme.
       expect(model.color, equals(Colors.cyan));
     });
 
+    testWidgets('overlay will apply to materials with a non-opaque surface color', (WidgetTester tester) async {
+      const Color surfaceColor = Color(0xFF121212);
+      const Color surfaceColorWithOverlay = Color(0xC6353535);
+
+      await tester.pumpWidget(
+        Theme(
+          data: ThemeData(
+            applyElevationOverlayColor: true,
+            colorScheme: const ColorScheme.dark(surface: surfaceColor),
+          ),
+          child: buildMaterial(
+            color: surfaceColor.withOpacity(.75),
+            elevation: 8.0,
+          ),
+        ),
+      );
+
+      final RenderPhysicalShape model = getModel(tester);
+      expect(model.color, equals(surfaceColorWithOverlay));
+      expect(model.color, isNot(equals(surfaceColor)));
+    });
+
+    testWidgets('Expected overlay color can be computed using colorWithOverlay', (WidgetTester tester) async {
+      const Color surfaceColor = Color(0xFF123456);
+      const Color onSurfaceColor = Color(0xFF654321);
+      const double elevation = 8.0;
+
+      final Color surfaceColorWithOverlay =
+        ElevationOverlay.colorWithOverlay(surfaceColor, onSurfaceColor, elevation);
+
+      await tester.pumpWidget(
+        Theme(
+          data: ThemeData(
+            applyElevationOverlayColor: true,
+            colorScheme: const ColorScheme.dark(
+              surface: surfaceColor,
+              onSurface: onSurfaceColor,
+            ),
+          ),
+          child: buildMaterial(
+            color: surfaceColor,
+            elevation: elevation,
+          ),
+        ),
+      );
+
+      final RenderPhysicalShape model = getModel(tester);
+      expect(model.color, equals(surfaceColorWithOverlay));
+      expect(model.color, isNot(equals(surfaceColor)));
+    });
   });
 
   group('Transparency clipping', () {
@@ -303,22 +404,6 @@ void main() {
       );
 
       expect(find.byKey(materialKey), hasNoImmediateClip);
-    });
-
-    testWidgets('Null clipBehavior asserts', (WidgetTester tester) async {
-      final GlobalKey materialKey = GlobalKey();
-      Future<void> doPump() async {
-        await tester.pumpWidget(
-            Material(
-              key: materialKey,
-              type: MaterialType.transparency,
-              child: const SizedBox(width: 100.0, height: 100.0),
-              clipBehavior: null,
-            ),
-        );
-      }
-
-      expect(() async => doPump(), throwsAssertionError);
     });
 
     testWidgets('clips to bounding rect by default given Clip.antiAlias', (WidgetTester tester) async {
@@ -350,7 +435,7 @@ void main() {
       expect(
         find.byKey(materialKey),
         clipsWithBoundingRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(10.0))
+          borderRadius: const BorderRadius.all(Radius.circular(10.0)),
         ),
       );
     });
@@ -715,12 +800,9 @@ void main() {
 
       await expectLater(
         find.byKey(painterKey),
-        matchesGoldenFile(
-          'material.border_paint_above.png',
-          version: null,
-        ),
+        matchesGoldenFile('material.border_paint_above.png'),
       );
-    }, skip: isBrowser);
+    });
 
     testWidgets('border is painted below child when specified', (WidgetTester tester) async {
       final Key painterKey = UniqueKey();
@@ -758,11 +840,8 @@ void main() {
 
       await expectLater(
         find.byKey(painterKey),
-        matchesGoldenFile(
-          'material.border_paint_below.png',
-          version: null,
-        ),
+        matchesGoldenFile('material.border_paint_below.png'),
       );
-    }, skip: isBrowser);
+    });
   });
 }

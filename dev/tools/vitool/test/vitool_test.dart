@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,15 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vitool/vitool.dart';
 import 'package:path/path.dart' as path;
-
-const String kPackagePath = '..';
+import 'package:vitool/vitool.dart';
 
 void main() {
 
   test('parsePixels', () {
     expect(parsePixels('23px'), 23);
     expect(parsePixels('9px'), 9);
-    expect(() { parsePixels('9pt'); }, throwsA(isInstanceOf<ArgumentError>()));
+    expect(() { parsePixels('9pt'); }, throwsArgumentError);
   });
 
   test('parsePoints', () {
@@ -559,7 +557,7 @@ void main() {
             ),
           ]);
 
-      expect(animation.toDart('_AnimatedIconData', '_\$data1'),
+      expect(animation.toDart('_AnimatedIconData', r'_$data1'),
           'const _AnimatedIconData _\$data1 = const _AnimatedIconData(\n'
           '  const Size(48.0, 48.0),\n'
           '  const <_PathFrames>[\n'
@@ -622,7 +620,7 @@ class PathMatcher extends Matcher {
     if (item.runtimeType != actual.runtimeType)
       return false;
 
-    final SvgPath other = item;
+    final SvgPath other = item as SvgPath;
     if (other.id != actual.id || other.opacity != actual.opacity)
       return false;
 
@@ -666,7 +664,7 @@ class PathAnimationMatcher extends Matcher {
     if (item.runtimeType != expected.runtimeType)
       return false;
 
-    final PathAnimation other = item;
+    final PathAnimation other = item as PathAnimation;
 
     if (!const ListEquality<double>().equals(other.opacities, expected.opacities))
       return false;
@@ -694,6 +692,5 @@ class PathAnimationMatcher extends Matcher {
 }
 
 String testAsset(String name) {
-  return path.join(kPackagePath, 'test_assets', name);
+  return path.join('test_assets', name);
 }
-

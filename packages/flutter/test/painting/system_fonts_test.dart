@@ -1,12 +1,10 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,10 +18,10 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-      (ByteData data) { },
+      (ByteData? data) { },
     );
     final RenderObject renderObject = tester.renderObject(find.text('text widget'));
     expect(renderObject.debugNeedsLayout, isTrue);
@@ -38,10 +36,10 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     final EditableTextState state = tester.state(find.byType(EditableText));
     expect(state.renderEditable.debugNeedsLayout, isTrue);
@@ -59,10 +57,10 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     final RenderObject renderObject = tester.renderObject(find.byType(Banner));
     expect(renderObject.debugNeedsPaint, isTrue);
@@ -77,15 +75,15 @@ void main() {
       ),
     );
     final dynamic state = tester.state(find.byType(CupertinoDatePicker));
-    final Map<int, double> cache = state.estimatedColumnWidths;
+    final Map<int, double> cache = state.estimatedColumnWidths as Map<int, double>;
     expect(cache.isNotEmpty, isTrue);
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     // Cache should be cleaned.
     expect(cache.isEmpty, isTrue);
@@ -103,16 +101,16 @@ void main() {
       ),
     );
     final dynamic state = tester.state(find.byType(CupertinoDatePicker));
-    final Map<int, double> cache = state.estimatedColumnWidths;
+    final Map<int, double> cache = state.estimatedColumnWidths as Map<int, double>;
     // Simulates font missing.
     cache.clear();
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     // Cache should be replenished
     expect(cache.isNotEmpty, isTrue);
@@ -136,10 +134,10 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     // Metrics should be refreshed
     expect(state.numberLabelWidth - 46.0 < precisionErrorTolerance, isTrue);
@@ -163,13 +161,16 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     final RenderObject renderObject = tester.renderObject(find.byType(RangeSlider));
-    expect(renderObject.debugNeedsLayout, isTrue);
+
+    late bool sliderBoxNeedsLayout;
+    renderObject.visitChildren((RenderObject child) {sliderBoxNeedsLayout = child.debugNeedsLayout;});
+    expect(sliderBoxNeedsLayout, isTrue);
   });
 
   testWidgets('Slider relayout upon system fonts changes', (WidgetTester tester) async {
@@ -186,12 +187,13 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
-    final RenderObject renderObject = tester.renderObject(find.byType(Slider));
+    // _RenderSlider is the last render object in the tree.
+    final RenderObject renderObject = tester.allRenderObjects.last;
     expect(renderObject.debugNeedsLayout, isTrue);
   });
 
@@ -202,17 +204,17 @@ void main() {
           child: Center(
             child: Builder(
               builder: (BuildContext context) {
-                return RaisedButton(
+                return ElevatedButton(
                   child: const Text('X'),
                   onPressed: () {
                     showTimePicker(
                       context: context,
                       initialTime: const TimeOfDay(hour: 7, minute: 0),
-                      builder: (BuildContext context, Widget child) {
+                      builder: (BuildContext context, Widget? child) {
                         return Directionality(
                           key: const Key('parent'),
                           textDirection: TextDirection.ltr,
-                          child: child,
+                          child: child!,
                         );
                       },
                     );
@@ -229,10 +231,10 @@ void main() {
     const Map<String, dynamic> data = <String, dynamic>{
       'type': 'fontsChange',
     };
-    await ServicesBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+    await ServicesBinding.instance!.defaultBinaryMessenger.handlePlatformMessage(
       'flutter/system',
       SystemChannels.system.codec.encodeMessage(data),
-        (ByteData data) { },
+        (ByteData? data) { },
     );
     final RenderObject renderObject = tester.renderObject(
       find.descendant(

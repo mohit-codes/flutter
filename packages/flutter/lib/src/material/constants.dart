@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,7 +30,7 @@ const double kTextTabBarHeight = kMinInteractiveDimension;
 /// The amount of time theme change animations should last.
 const Duration kThemeChangeDuration = Duration(milliseconds: 200);
 
-/// The radius of a circular material ink response in logical pixels.
+/// The default radius of a circular material ink response in logical pixels.
 const double kRadialReactionRadius = 20.0;
 
 /// The amount of time a circular material ink response should take to expand to its full size.

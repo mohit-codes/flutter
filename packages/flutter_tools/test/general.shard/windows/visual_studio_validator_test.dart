@@ -1,139 +1,238 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_tools/src/base/user_messages.dart';
-import 'package:flutter_tools/src/doctor.dart';
+import 'package:flutter_tools/src/base/user_messages.dart' hide userMessages;
+import 'package:flutter_tools/src/doctor_validator.dart';
 import 'package:flutter_tools/src/windows/visual_studio.dart';
 import 'package:flutter_tools/src/windows/visual_studio_validator.dart';
-import 'package:mockito/mockito.dart';
+import 'package:test/fake.dart';
 
 import '../../src/common.dart';
-import '../../src/context.dart';
 
-class MockVisualStudio extends Mock implements VisualStudio {}
+final UserMessages userMessages = UserMessages();
 
 void main() {
   group('Visual Studio validation', () {
-    MockVisualStudio mockVisualStudio;
+    late FakeVisualStudio fakeVisualStudio;
 
     setUp(() {
-      mockVisualStudio = MockVisualStudio();
-      // Default values regardless of whether VS is installed or not.
-      when(mockVisualStudio.workloadDescription).thenReturn('Desktop development');
-      when(mockVisualStudio.necessaryComponentDescriptions(any)).thenReturn(<String>['A', 'B']);
+      fakeVisualStudio = FakeVisualStudio();
     });
 
     // Assigns default values for a complete VS installation with necessary components.
     void _configureMockVisualStudioAsInstalled() {
-      when(mockVisualStudio.isInstalled).thenReturn(true);
-      when(mockVisualStudio.isPrerelease).thenReturn(false);
-      when(mockVisualStudio.isComplete).thenReturn(true);
-      when(mockVisualStudio.isLaunchable).thenReturn(true);
-      when(mockVisualStudio.isRebootRequired).thenReturn(false);
-      when(mockVisualStudio.hasNecessaryComponents).thenReturn(true);
-      when(mockVisualStudio.fullVersion).thenReturn('15.1');
-      when(mockVisualStudio.displayName).thenReturn('Visual Studio Community 2019');
+      fakeVisualStudio.isPrerelease = false;
+      fakeVisualStudio.isRebootRequired = false;
+      fakeVisualStudio.fullVersion = '16.2';
+      fakeVisualStudio.displayName = 'Visual Studio Community 2019';
+      fakeVisualStudio.windows10SDKVersion = '10.0.18362.0';
+    }
+
+    // Assigns default values for a complete VS installation that is too old.
+    void _configureMockVisualStudioAsTooOld() {
+      fakeVisualStudio.isAtLeastMinimumVersion = false;
+      fakeVisualStudio.isPrerelease = false;
+      fakeVisualStudio.isRebootRequired = false;
+      fakeVisualStudio.fullVersion = '15.1';
+      fakeVisualStudio.displayName = 'Visual Studio Community 2017';
+      fakeVisualStudio.windows10SDKVersion = '10.0.17763.0';
     }
 
     // Assigns default values for a missing VS installation.
     void _configureMockVisualStudioAsNotInstalled() {
-      when(mockVisualStudio.isInstalled).thenReturn(false);
-      when(mockVisualStudio.isPrerelease).thenReturn(false);
-      when(mockVisualStudio.isComplete).thenReturn(false);
-      when(mockVisualStudio.isLaunchable).thenReturn(false);
-      when(mockVisualStudio.isRebootRequired).thenReturn(false);
-      when(mockVisualStudio.hasNecessaryComponents).thenReturn(false);
+      fakeVisualStudio.isInstalled = false;
+      fakeVisualStudio.isAtLeastMinimumVersion = false;
+      fakeVisualStudio.isPrerelease = false;
+      fakeVisualStudio.isComplete = false;
+      fakeVisualStudio.isLaunchable = false;
+      fakeVisualStudio.isRebootRequired = false;
+      fakeVisualStudio.hasNecessaryComponents = false;
+      fakeVisualStudio.windows10SDKVersion = null;
     }
 
-    testUsingContext('Emits a message when Visual Studio is a pre-release version', () async {
+    testWithoutContext('Emits a message when Visual Studio is a pre-release version', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsInstalled();
-      when(visualStudio.isPrerelease).thenReturn(true);
+      fakeVisualStudio.isPrerelease = true;
 
-      const VisualStudioValidator validator = VisualStudioValidator();
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedMessage = ValidationMessage(userMessages.visualStudioIsPrerelease);
+
       expect(result.messages.contains(expectedMessage), true);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
-    testUsingContext('Emits a partial status when Visual Studio installation is incomplete', () async {
+    testWithoutContext('Emits a partial status when Visual Studio installation is incomplete', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsInstalled();
-      when(visualStudio.isComplete).thenReturn(false);
+      fakeVisualStudio.isComplete = false;
 
-      const VisualStudioValidator validator = VisualStudioValidator();
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedMessage = ValidationMessage.error(userMessages.visualStudioIsIncomplete);
+
       expect(result.messages.contains(expectedMessage), true);
       expect(result.type, ValidationType.partial);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
-    testUsingContext('Emits a partial status when Visual Studio installation needs rebooting', () async {
+    testWithoutContext('Emits a partial status when Visual Studio installation needs rebooting', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsInstalled();
-      when(visualStudio.isRebootRequired).thenReturn(true);
+      fakeVisualStudio.isRebootRequired = true;
 
-      const VisualStudioValidator validator = VisualStudioValidator();
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedMessage = ValidationMessage.error(userMessages.visualStudioRebootRequired);
+
       expect(result.messages.contains(expectedMessage), true);
       expect(result.type, ValidationType.partial);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
-    testUsingContext('Emits a partial status when Visual Studio installation is not launchable', () async {
+    testWithoutContext('Emits a partial status when Visual Studio installation is not launchable', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsInstalled();
-      when(visualStudio.isLaunchable).thenReturn(false);
+      fakeVisualStudio.isLaunchable = false;
 
-      const VisualStudioValidator validator = VisualStudioValidator();
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedMessage = ValidationMessage.error(userMessages.visualStudioNotLaunchable);
+
       expect(result.messages.contains(expectedMessage), true);
       expect(result.type, ValidationType.partial);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
+    testWithoutContext('Emits partial status when Visual Studio is installed but too old', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
+      _configureMockVisualStudioAsTooOld();
 
-    testUsingContext('Emits partial status when Visual Studio is installed without necessary components', () async {
-      _configureMockVisualStudioAsInstalled();
-      when(visualStudio.hasNecessaryComponents).thenReturn(false);
-      const VisualStudioValidator validator = VisualStudioValidator();
       final ValidationResult result = await validator.validate();
+      final ValidationMessage expectedMessage = ValidationMessage.error(
+        userMessages.visualStudioTooOld(
+          fakeVisualStudio.minimumVersionDescription,
+          fakeVisualStudio.workloadDescription,
+        ),
+      );
+
+      expect(result.messages.contains(expectedMessage), true);
       expect(result.type, ValidationType.partial);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
-    testUsingContext('Emits installed status when Visual Studio is installed with necessary components', () async {
+    testWithoutContext('Emits partial status when Visual Studio is installed without necessary components', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsInstalled();
-      const VisualStudioValidator validator = VisualStudioValidator();
+      fakeVisualStudio.hasNecessaryComponents = false;
+      final ValidationResult result = await validator.validate();
+
+      expect(result.type, ValidationType.partial);
+    });
+
+    testWithoutContext('Emits partial status when Visual Studio is installed but the SDK cannot be found', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
+      _configureMockVisualStudioAsInstalled();
+      fakeVisualStudio.windows10SDKVersion = null;
+      final ValidationResult result = await validator.validate();
+
+      expect(result.type, ValidationType.partial);
+    });
+
+    testWithoutContext('Emits installed status when Visual Studio is installed with necessary components', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
+      _configureMockVisualStudioAsInstalled();
+
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedDisplayNameMessage = ValidationMessage(
-        userMessages.visualStudioVersion(visualStudio.displayName, visualStudio.fullVersion));
+        userMessages.visualStudioVersion(fakeVisualStudio.displayName!, fakeVisualStudio.fullVersion!));
+
       expect(result.messages.contains(expectedDisplayNameMessage), true);
       expect(result.type, ValidationType.installed);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
 
-    testUsingContext('Emits missing status when Visual Studio is not installed', () async {
+    testWithoutContext('Emits missing status when Visual Studio is not installed', () async {
+      final VisualStudioValidator validator = VisualStudioValidator(
+        userMessages: userMessages,
+        visualStudio: fakeVisualStudio,
+      );
       _configureMockVisualStudioAsNotInstalled();
-      const VisualStudioValidator validator = VisualStudioValidator();
+
       final ValidationResult result = await validator.validate();
       final ValidationMessage expectedMessage = ValidationMessage.error(
         userMessages.visualStudioMissing(
-          visualStudio.workloadDescription,
-          visualStudio.necessaryComponentDescriptions(validator.majorVersion),
+          fakeVisualStudio.workloadDescription,
         ),
       );
+
       expect(result.messages.contains(expectedMessage), true);
       expect(result.type, ValidationType.missing);
-    }, overrides: <Type, Generator>{
-      VisualStudio: () => mockVisualStudio,
     });
   });
+}
+
+class FakeVisualStudio extends Fake implements VisualStudio {
+  @override
+  final String installLocation = 'bogus';
+
+  @override
+  final String displayVersion = 'version';
+
+  @override
+  final String minimumVersionDescription = '2019';
+
+  @override
+  List<String> necessaryComponentDescriptions() => <String>['A', 'B'];
+
+  @override
+  bool isInstalled = true;
+
+  @override
+  bool isAtLeastMinimumVersion = true;
+
+  @override
+  bool isPrerelease = true;
+
+  @override
+  bool isComplete = true;
+
+  @override
+  bool isLaunchable = true;
+
+  @override
+  bool isRebootRequired = true;
+
+  @override
+  bool hasNecessaryComponents = true;
+
+  @override
+  String? fullVersion;
+
+  @override
+  String? displayName;
+
+  String? windows10SDKVersion;
+
+  @override
+  String? getWindows10SDKVersion() => windows10SDKVersion;
+
+  @override
+  String get workloadDescription => 'Desktop development';
 }

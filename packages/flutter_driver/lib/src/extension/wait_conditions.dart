@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,12 +49,12 @@ class _InternalNoTransientCallbacksCondition implements WaitCondition {
   }
 
   @override
-  bool get condition => SchedulerBinding.instance.transientCallbackCount == 0;
+  bool get condition => SchedulerBinding.instance!.transientCallbackCount == 0;
 
   @override
   Future<void> wait() async {
     while (!condition) {
-      await SchedulerBinding.instance.endOfFrame;
+      await SchedulerBinding.instance!.endOfFrame;
     }
     assert(condition);
   }
@@ -77,12 +77,12 @@ class _InternalNoPendingFrameCondition implements WaitCondition {
   }
 
   @override
-  bool get condition => !SchedulerBinding.instance.hasScheduledFrame;
+  bool get condition => !SchedulerBinding.instance!.hasScheduledFrame;
 
   @override
   Future<void> wait() async {
     while (!condition) {
-      await SchedulerBinding.instance.endOfFrame;
+      await SchedulerBinding.instance!.endOfFrame;
     }
     assert(condition);
   }
@@ -105,11 +105,11 @@ class _InternalFirstFrameRasterizedCondition implements WaitCondition {
   }
 
   @override
-  bool get condition => WidgetsBinding.instance.firstFrameRasterized;
+  bool get condition => WidgetsBinding.instance!.firstFrameRasterized;
 
   @override
   Future<void> wait() async {
-    await WidgetsBinding.instance.waitUntilFirstFrameRasterized;
+    await WidgetsBinding.instance!.waitUntilFirstFrameRasterized;
     assert(condition);
   }
 }
@@ -132,13 +132,13 @@ class _InternalNoPendingPlatformMessagesCondition implements WaitCondition {
 
   @override
   bool get condition {
-    final TestDefaultBinaryMessenger binaryMessenger = ServicesBinding.instance.defaultBinaryMessenger;
+    final TestDefaultBinaryMessenger binaryMessenger = ServicesBinding.instance!.defaultBinaryMessenger as TestDefaultBinaryMessenger;
     return binaryMessenger.pendingMessageCount == 0;
   }
 
   @override
   Future<void> wait() async {
-    final TestDefaultBinaryMessenger binaryMessenger = ServicesBinding.instance.defaultBinaryMessenger;
+    final TestDefaultBinaryMessenger binaryMessenger = ServicesBinding.instance!.defaultBinaryMessenger as TestDefaultBinaryMessenger;
     while (!condition) {
       await binaryMessenger.platformMessagesFinished;
     }
@@ -163,14 +163,8 @@ class _InternalCombinedCondition implements WaitCondition {
     assert(condition != null);
     if (condition.conditionName != 'CombinedCondition')
       throw SerializationException('Error occurred during deserializing from the given condition: ${condition.serialize()}');
-    final CombinedCondition combinedCondition = condition;
-    if (combinedCondition.conditions == null) {
-      return const _InternalCombinedCondition(<WaitCondition>[]);
-    }
-
-    final List<WaitCondition> conditions = combinedCondition.conditions.map(
-        (SerializableWaitCondition serializableCondition) => deserializeCondition(serializableCondition)
-      ).toList();
+    final CombinedCondition combinedCondition = condition as CombinedCondition;
+    final List<WaitCondition> conditions = combinedCondition.conditions.map(deserializeCondition).toList();
     return _InternalCombinedCondition(conditions);
   }
 
@@ -185,7 +179,7 @@ class _InternalCombinedCondition implements WaitCondition {
   @override
   Future<void> wait() async {
     while (!condition) {
-      for (WaitCondition condition in conditions) {
+      for (final WaitCondition condition in conditions) {
         assert (condition != null);
         await condition.wait();
       }

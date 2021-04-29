@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,12 +6,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path/path.dart' as path;
-
 import 'package:flutter_devicelab/framework/adb.dart';
 import 'package:flutter_devicelab/framework/framework.dart';
-import 'package:flutter_devicelab/framework/ios.dart';
+import 'package:flutter_devicelab/framework/task_result.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
+import 'package:path/path.dart' as path;
 
 /// Creates a device lab task that runs benchmarks in
 /// `dev/benchmarks/microbenchmarks` reports results to the dashboard.
@@ -26,23 +25,22 @@ TaskFunction createMicrobenchmarkTask() {
         final Directory appDir = dir(
             path.join(flutterDirectory.path, 'dev/benchmarks/microbenchmarks'));
         final Process flutterProcess = await inDirectory(appDir, () async {
-          if (deviceOperatingSystem == DeviceOperatingSystem.ios)
-            await prepareProvisioningCertificates(appDir.path);
           final List<String> options = <String>[
             '-v',
             // --release doesn't work on iOS due to code signing issues
             '--profile',
+            '--no-publish-port',
             '-d',
             device.deviceId,
           ];
           options.add(benchmarkPath);
-          return await _startFlutter(
+          return _startFlutter(
             options: options,
             canFail: false,
           );
         });
 
-        return await _readJsonResults(flutterProcess);
+        return _readJsonResults(flutterProcess);
       }
       return _run();
     }
@@ -57,14 +55,15 @@ TaskFunction createMicrobenchmarkTask() {
       ...await _runMicrobench('lib/stocks/animation_bench.dart'),
       ...await _runMicrobench('lib/language/sync_star_bench.dart'),
       ...await _runMicrobench('lib/language/sync_star_semantics_bench.dart'),
-    };
+      ...await _runMicrobench('lib/foundation/all_elements_bench.dart'),
+      ...await _runMicrobench('lib/foundation/change_notifier_bench.dart'),
+ };
 
     return TaskResult.success(allResults, benchmarkScoreKeys: allResults.keys.toList());
   };
 }
 
 Future<Process> _startFlutter({
-  String command = 'run',
   List<String> options = const <String>[],
   bool canFail = false,
   Map<String, String> environment,
@@ -131,7 +130,7 @@ Future<Map<String, double>> _readJsonResults(Process process) {
       // Also send a kill signal in case the `q` above didn't work.
       process.kill(ProcessSignal.sigint);
       try {
-        completer.complete(Map<String, double>.from(json.decode(jsonOutput)));
+        completer.complete(Map<String, double>.from(json.decode(jsonOutput) as Map<String, dynamic>));
       } catch (ex) {
         completer.completeError('Decoding JSON failed ($ex). JSON string was: $jsonOutput');
       }

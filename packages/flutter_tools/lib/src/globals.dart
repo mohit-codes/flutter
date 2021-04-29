@@ -1,74 +1,49 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
+import 'android/gradle_utils.dart';
 import 'artifacts.dart';
-import 'base/config.dart';
 import 'base/context.dart';
-import 'base/logger.dart';
-import 'base/terminal.dart';
-import 'cache.dart';
+import 'build_system/build_system.dart';
+import 'device.dart';
+import 'doctor.dart';
+import 'fuchsia/fuchsia_sdk.dart';
+import 'globals_null_migrated.dart' as globals;
+import 'ios/simulators.dart';
+import 'macos/cocoapods.dart';
+import 'macos/cocoapods_validator.dart';
+import 'macos/xcdevice.dart';
+import 'project.dart';
+import 'reporting/crash_reporting.dart';
+import 'runner/local_engine.dart';
 
-Logger get logger => context.get<Logger>();
-Cache get cache => Cache.instance;
-Config get config => Config.instance;
-Artifacts get artifacts => Artifacts.instance;
+export 'globals_null_migrated.dart';
 
-/// Display an error level message to the user. Commands should use this if they
-/// fail in some way.
-///
-/// Set [emphasis] to true to make the output bold if it's supported.
-/// Set [color] to a [TerminalColor] to color the output, if the logger
-/// supports it. The [color] defaults to [TerminalColor.red].
-void printError(
-  String message, {
-  StackTrace stackTrace,
-  bool emphasis,
-  TerminalColor color,
-  int indent,
-  int hangingIndent,
-  bool wrap,
-}) {
-  logger.printError(
-    message,
-    stackTrace: stackTrace,
-    emphasis: emphasis ?? false,
-    color: color,
-    indent: indent,
-    hangingIndent: hangingIndent,
-    wrap: wrap,
+Artifacts get artifacts => context.get<Artifacts>();
+BuildSystem get buildSystem => context.get<BuildSystem>();
+CrashReporter get crashReporter => context.get<CrashReporter>();
+Doctor get doctor => context.get<Doctor>();
+DeviceManager get deviceManager => context.get<DeviceManager>();
+
+FlutterProjectFactory get projectFactory {
+  return context.get<FlutterProjectFactory>() ?? FlutterProjectFactory(
+    logger: globals.logger,
+    fileSystem: globals.fs,
   );
 }
 
-/// Display normal output of the command. This should be used for things like
-/// progress messages, success messages, or just normal command output.
-///
-/// Set `emphasis` to true to make the output bold if it's supported.
-///
-/// Set `newline` to false to skip the trailing linefeed.
-///
-/// If `indent` is provided, each line of the message will be prepended by the
-/// specified number of whitespaces.
-void printStatus(
-  String message, {
-  bool emphasis,
-  bool newline,
-  TerminalColor color,
-  int indent,
-  int hangingIndent,
-  bool wrap,
-}) {
-  logger.printStatus(
-    message,
-    emphasis: emphasis ?? false,
-    color: color,
-    newline: newline ?? true,
-    indent: indent,
-    hangingIndent: hangingIndent,
-    wrap: wrap,
-  );
-}
+CocoaPodsValidator get cocoapodsValidator => context.get<CocoaPodsValidator>();
 
-/// Use this for verbose tracing output. Users can turn this output on in order
-/// to help diagnose issues with the toolchain or with their setup.
-void printTrace(String message) => logger.printTrace(message);
+LocalEngineLocator get localEngineLocator => context.get<LocalEngineLocator>();
+
+CocoaPods get cocoaPods => context.get<CocoaPods>();
+FuchsiaArtifacts get fuchsiaArtifacts => context.get<FuchsiaArtifacts>();
+IOSSimulatorUtils get iosSimulatorUtils => context.get<IOSSimulatorUtils>();
+
+XCDevice get xcdevice => context.get<XCDevice>();
+
+/// Gradle utils in the current [AppContext].
+GradleUtils get gradleUtils => context.get<GradleUtils>();

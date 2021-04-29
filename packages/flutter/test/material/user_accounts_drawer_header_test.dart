@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,10 +14,12 @@ const Key avatarD = Key('D');
 
 Future<void> pumpTestWidget(
   WidgetTester tester, {
-  bool withName = true,
-  bool withEmail = true,
-  bool withOnDetailsPressedHandler = true,
-}) async {
+      bool withName = true,
+      bool withEmail = true,
+      bool withOnDetailsPressedHandler = true,
+      Size otherAccountsPictureSize = const Size.square(40.0),
+      Size currentAccountPictureSize  = const Size.square(72.0),
+    }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: MediaQuery(
@@ -33,6 +35,8 @@ Future<void> pumpTestWidget(
           child: Center(
             child: UserAccountsDrawerHeader(
               onDetailsPressed: withOnDetailsPressedHandler ? () { } : null,
+              currentAccountPictureSize: currentAccountPictureSize,
+              otherAccountsPicturesSize: otherAccountsPictureSize,
               currentAccountPicture: const ExcludeSemantics(
                 child: CircleAvatar(
                   key: avatarA,
@@ -104,6 +108,23 @@ void main() {
     expect(avatarDTopRight.dx - avatarCTopRight.dx, equals(40.0 + 16.0)); // size + space between
   });
 
+  testWidgets('UserAccountsDrawerHeader change default size test', (WidgetTester tester) async {
+    const Size currentAccountPictureSize = Size.square(60.0);
+    const Size otherAccountsPictureSize = Size.square(30.0);
+
+    await pumpTestWidget(
+      tester,
+      currentAccountPictureSize: currentAccountPictureSize,
+      otherAccountsPictureSize: otherAccountsPictureSize,
+    );
+
+    final RenderBox currentAccountRenderBox = tester.renderObject(find.byKey(avatarA));
+    final RenderBox otherAccountRenderBox = tester.renderObject(find.byKey(avatarC));
+
+    expect(currentAccountRenderBox.size, currentAccountPictureSize);
+    expect(otherAccountRenderBox.size, otherAccountsPictureSize);
+  });
+
   testWidgets('UserAccountsDrawerHeader icon rotation test', (WidgetTester tester) async {
     await pumpTestWidget(tester);
     Transform transformWidget = tester.firstWidget(find.byType(Transform));
@@ -141,7 +162,7 @@ void main() {
 
   // Regression test for https://github.com/flutter/flutter/issues/25801.
   testWidgets('UserAccountsDrawerHeader icon does not rotate after setState', (WidgetTester tester) async {
-    StateSetter testSetState;
+    late StateSetter testSetState;
     await tester.pumpWidget(MaterialApp(
       home: Material(
         child: StatefulBuilder(
@@ -249,12 +270,12 @@ void main() {
 
   testWidgets('UserAccountsDrawerHeader null parameters LTR', (WidgetTester tester) async {
     Widget buildFrame({
-      Widget currentAccountPicture,
-      List<Widget> otherAccountsPictures,
-      Widget accountName,
-      Widget accountEmail,
-      VoidCallback onDetailsPressed,
-      EdgeInsets margin,
+      Widget? currentAccountPicture,
+      List<Widget>? otherAccountsPictures,
+      Widget? accountName,
+      Widget? accountEmail,
+      VoidCallback? onDetailsPressed,
+      EdgeInsets? margin,
     }) {
       return MaterialApp(
         home: Material(
@@ -357,12 +378,12 @@ void main() {
 
   testWidgets('UserAccountsDrawerHeader null parameters RTL', (WidgetTester tester) async {
     Widget buildFrame({
-      Widget currentAccountPicture,
-      List<Widget> otherAccountsPictures,
-      Widget accountName,
-      Widget accountEmail,
-      VoidCallback onDetailsPressed,
-      EdgeInsets margin,
+      Widget? currentAccountPicture,
+      List<Widget>? otherAccountsPictures,
+      Widget? accountName,
+      Widget? accountEmail,
+      VoidCallback? onDetailsPressed,
+      EdgeInsets? margin,
     }) {
       return MaterialApp(
         home: Directionality(
@@ -478,30 +499,34 @@ void main() {
             TestSemantics(
               children: <TestSemantics>[
                 TestSemantics(
-                  flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
                   children: <TestSemantics>[
                     TestSemantics(
-                      flags: <SemanticsFlag>[SemanticsFlag.isFocusable],
-                      label: 'Signed in\nname\nemail',
-                      textDirection: TextDirection.ltr,
+                      flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
                       children: <TestSemantics>[
                         TestSemantics(
-                          label: r'B',
+                          flags: <SemanticsFlag>[SemanticsFlag.isFocusable],
+                          label: 'Signed in\nname\nemail',
                           textDirection: TextDirection.ltr,
-                        ),
-                        TestSemantics(
-                          label: r'C',
-                          textDirection: TextDirection.ltr,
-                        ),
-                        TestSemantics(
-                          label: r'D',
-                          textDirection: TextDirection.ltr,
-                        ),
-                        TestSemantics(
-                          flags: <SemanticsFlag>[SemanticsFlag.isButton],
-                          actions: <SemanticsAction>[SemanticsAction.tap],
-                          label: r'Show accounts',
-                          textDirection: TextDirection.ltr,
+                          children: <TestSemantics>[
+                            TestSemantics(
+                              label: r'B',
+                              textDirection: TextDirection.ltr,
+                            ),
+                            TestSemantics(
+                              label: r'C',
+                              textDirection: TextDirection.ltr,
+                            ),
+                            TestSemantics(
+                              label: r'D',
+                              textDirection: TextDirection.ltr,
+                            ),
+                            TestSemantics(
+                              flags: <SemanticsFlag>[SemanticsFlag.isButton],
+                              actions: <SemanticsAction>[SemanticsAction.tap],
+                              label: r'Show accounts',
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -556,23 +581,27 @@ void main() {
             TestSemantics(
               children: <TestSemantics>[
                 TestSemantics(
-                  flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
                   children: <TestSemantics>[
                     TestSemantics(
-                      label: 'Signed in',
-                      textDirection: TextDirection.ltr,
+                      flags: <SemanticsFlag>[SemanticsFlag.scopesRoute],
                       children: <TestSemantics>[
                         TestSemantics(
-                          label: r'B',
+                          label: 'Signed in',
                           textDirection: TextDirection.ltr,
-                        ),
-                        TestSemantics(
-                          label: r'C',
-                          textDirection: TextDirection.ltr,
-                        ),
-                        TestSemantics(
-                          label: r'D',
-                          textDirection: TextDirection.ltr,
+                          children: <TestSemantics>[
+                            TestSemantics(
+                              label: r'B',
+                              textDirection: TextDirection.ltr,
+                            ),
+                            TestSemantics(
+                              label: r'C',
+                              textDirection: TextDirection.ltr,
+                            ),
+                            TestSemantics(
+                              label: r'D',
+                              textDirection: TextDirection.ltr,
+                            ),
+                          ],
                         ),
                       ],
                     ),

@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ import '_platform_io.dart'
 /// platform for styling purposes, rather than using [defaultTargetPlatform].
 /// Widgets and render objects at lower layers that try to emulate the
 /// underlying platform can depend on [defaultTargetPlatform] directly. The
-/// [dart.io.Platform] object should only be used directly when it's critical to
+/// [dart:io.Platform] object should only be used directly when it's critical to
 /// actually know the current platform, without any overrides possible (for
 /// example, when a system API is about to be called).
 ///
@@ -23,9 +23,12 @@ import '_platform_io.dart'
 /// adaptations for iOS later). Tests can check iOS behavior by using the
 /// platform override APIs (such as [ThemeData.platform] in the material
 /// library) or by setting [debugDefaultTargetPlatformOverride].
+///
+/// Tests can also create specific platform tests by and adding a `variant:`
+/// argument to the test and using a [TargetPlatformVariant].
 //
-// When adding support for a new platform (e.g. Windows Phone, macOS), first
-// create a new value on the [TargetPlatform] enum, then add a rule for
+// When adding support for a new platform (e.g. Windows Phone, Rasberry Pi),
+// first create a new value on the [TargetPlatform] enum, then add a rule for
 // selecting that platform here.
 //
 // It would be incorrect to make a platform that isn't supported by
@@ -42,11 +45,20 @@ enum TargetPlatform {
   /// Android: <https://www.android.com/>
   android,
 
-  /// Fuchsia: <https://fuchsia.googlesource.com/>
+  /// Fuchsia: <https://fuchsia.dev/fuchsia-src/concepts>
   fuchsia,
 
-  /// iOS: <http://www.apple.com/ios/>
+  /// iOS: <https://www.apple.com/ios/>
   iOS,
+
+  /// Linux: <https://www.linux.org>
+  linux,
+
+  /// macOS: <https://www.apple.com/macos>
+  macOS,
+
+  /// Windows: <https://www.windows.com>
+  windows,
 }
 
 /// Override the [defaultTargetPlatform].
@@ -68,4 +80,4 @@ enum TargetPlatform {
 /// button, which will make those widgets unusable since iOS has no such button.
 ///
 /// In general, therefore, this property should not be used in release builds.
-TargetPlatform debugDefaultTargetPlatformOverride;
+TargetPlatform? debugDefaultTargetPlatformOverride;

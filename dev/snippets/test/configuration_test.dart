@@ -1,12 +1,11 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:io';
 
-import 'package:test/test.dart' hide TypeMatcher, isInstanceOf;
-
 import 'package:snippets/configuration.dart';
+import 'package:test/test.dart' hide TypeMatcher, isInstanceOf;
 
 void main() {
   group('Configuration', () {
@@ -33,21 +32,21 @@ void main() {
     });
     test('html skeleton file for sample is correct', () async {
       expect(
+          config.getHtmlSkeletonFile(SnippetType.snippet).path,
+          matches(RegExp(
+              r'[/\\]flutter sdk[/\\]dev[/\\]snippets[/\\]config[/\\]skeletons[/\\]snippet.html')));
+    });
+    test('html skeleton file for app with no dartpad is correct', () async {
+      expect(
           config.getHtmlSkeletonFile(SnippetType.sample).path,
           matches(RegExp(
               r'[/\\]flutter sdk[/\\]dev[/\\]snippets[/\\]config[/\\]skeletons[/\\]sample.html')));
     });
-    test('html skeleton file for app with no dartpad is correct', () async {
-      expect(
-          config.getHtmlSkeletonFile(SnippetType.application).path,
-          matches(RegExp(
-              r'[/\\]flutter sdk[/\\]dev[/\\]snippets[/\\]config[/\\]skeletons[/\\]application.html')));
-    });
     test('html skeleton file for app with dartpad is correct', () async {
       expect(
-          config.getHtmlSkeletonFile(SnippetType.application, showDartPad: true).path,
+          config.getHtmlSkeletonFile(SnippetType.sample, showDartPad: true).path,
           matches(RegExp(
-              r'[/\\]flutter sdk[/\\]dev[/\\]snippets[/\\]config[/\\]skeletons[/\\]dartpad-application.html')));
+              r'[/\\]flutter sdk[/\\]dev[/\\]snippets[/\\]config[/\\]skeletons[/\\]dartpad-sample.html')));
     });
   });
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,9 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'invert_colors_test.0.png',
-        version: null,
-      ),
+      matchesGoldenFile('invert_colors_test.0.png'),
     );
-  }, skip: isBrowser);
+  });
 
   testWidgets('InvertColors and ColorFilter',  (WidgetTester tester) async {
     await tester.pumpWidget(const RepaintBoundary(
@@ -41,25 +38,22 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'invert_colors_test.1.png',
-        version: null,
-      ),
+      matchesGoldenFile('invert_colors_test.1.png'),
     );
-  }, skip: isBrowser);
+  });
 }
 
 // Draws a rectangle sized by the parent widget with [color], [colorFilter],
 // and [invertColors] applied for testing the invert colors.
 class InvertColorTestWidget extends LeafRenderObjectWidget {
   const InvertColorTestWidget({
-    this.color,
+    required this.color,
     this.filter,
-    Key key,
+    Key? key,
   }) : super(key: key);
 
   final Color color;
-  final ColorFilter filter;
+  final ColorFilter? filter;
 
   @override
   RenderInvertColorTest createRenderObject(BuildContext context) {
@@ -87,9 +81,9 @@ class RenderInvertColorTest extends RenderProxyBox {
   }
 
 
-  ColorFilter get filter => _filter;
-  ColorFilter _filter;
-  set filter(ColorFilter value) {
+  ColorFilter? get filter => _filter;
+  ColorFilter? _filter;
+  set filter(ColorFilter? value) {
     if (filter == value)
       return;
     _filter = value;

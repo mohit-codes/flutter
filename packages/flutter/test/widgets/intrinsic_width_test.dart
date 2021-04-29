@@ -1,14 +1,14 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('Intrinsic stepWidth, stepHeight', (WidgetTester tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/25224
-    Widget buildFrame(double stepWidth, double stepHeight) {
+    Widget buildFrame(double? stepWidth, double? stepHeight) {
       return Center(
         child: IntrinsicWidth(
           stepWidth: stepWidth,

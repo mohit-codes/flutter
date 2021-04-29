@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
 
 import 'semantics_tester.dart';
 
@@ -72,7 +72,7 @@ void main() {
                     (BuildContext _, int index) {
                       return Container(
                         height: 100.0,
-                        color: index % 2 == 0 ? Colors.red : Colors.yellow,
+                        color: index.isEven ? Colors.red : Colors.yellow,
                         child: Text('Tile $index'),
                       );
                     },
@@ -151,7 +151,7 @@ void main() {
     );
     expect(semantics, hasSemantics(expectedSemantics, ignoreTransform: true, ignoreId: true, ignoreRect: true));
 
-    await tester.fling(find.text('Tile 2'), const Offset(0, -600), 2000);
+    await tester.fling(find.text('Tile 2'), const Offset(0, -600), 1950);
     await tester.pumpAndSettle();
 
     expectedSemantics = TestSemantics.root(
@@ -298,7 +298,7 @@ void main() {
     // initial position of E was 200 + 56 + cSize.height + cSize.height + 500
     // we've scrolled that up by 600.0, meaning it's at that minus 600 now:
     expect(tester.getTopLeft(find.text('E')), Offset(0.0, 200.0 + 56.0 + cSize.height * 2.0 + 500.0 - 600.0));
-  }, skip: isBrowser);
+  });
 
   testWidgets('Does not crash when there is less than minExtent remainingPaintExtent', (WidgetTester tester) async {
     // Regression test for https://github.com/flutter/flutter/issues/21887.
@@ -320,7 +320,7 @@ void main() {
                 ),
                 SliverList(
                   delegate: SliverChildListDelegate(List<Widget>.generate(20, (int i) {
-                    return Container(
+                    return SizedBox(
                       child: Text('Tile $i'),
                       height: 100.0,
                     );
@@ -334,15 +334,15 @@ void main() {
     );
     final RenderSliverFloatingPinnedPersistentHeader render = tester.renderObject(find.byType(SliverAppBar));
     expect(render.minExtent, greaterThan(availableHeight)); // Precondition
-    expect(render.geometry.scrollExtent, 120.0);
-    expect(render.geometry.paintExtent, availableHeight);
-    expect(render.geometry.layoutExtent, availableHeight);
+    expect(render.geometry!.scrollExtent, 120.0);
+    expect(render.geometry!.paintExtent, availableHeight);
+    expect(render.geometry!.layoutExtent, availableHeight);
 
     controller.jumpTo(200.0);
     await tester.pumpAndSettle();
-    expect(render.geometry.scrollExtent, 120.0);
-    expect(render.geometry.paintExtent, availableHeight);
-    expect(render.geometry.layoutExtent, 0.0);
+    expect(render.geometry!.scrollExtent, 120.0);
+    expect(render.geometry!.paintExtent, availableHeight);
+    expect(render.geometry!.layoutExtent, 0.0);
   });
 
   testWidgets('Pinned and floating SliverAppBar sticks to top the content is scroll down', (WidgetTester tester) async {
@@ -376,7 +376,7 @@ void main() {
     await gesture.moveBy(const Offset(0, scrollDistance));
     await tester.pump();
 
-    expect(render.geometry.paintOrigin, -scrollDistance);
+    expect(render.geometry!.paintOrigin, -scrollDistance);
   });
 
   testWidgets('Floating SliverAppBar sticks to top the content is scroll down', (WidgetTester tester) async {
@@ -410,7 +410,7 @@ void main() {
     await gesture.moveBy(const Offset(0, scrollDistance));
     await tester.pump();
 
-    expect(render.geometry.paintOrigin, -scrollDistance);
+    expect(render.geometry!.paintOrigin, -scrollDistance);
   });
 
   testWidgets('Pinned SliverAppBar sticks to top the content is scroll down', (WidgetTester tester) async {
@@ -444,6 +444,6 @@ void main() {
     await gesture.moveBy(const Offset(0, scrollDistance));
     await tester.pump();
 
-    expect(render.geometry.paintOrigin, -scrollDistance);
+    expect(render.geometry!.paintOrigin, -scrollDistance);
   });
 }

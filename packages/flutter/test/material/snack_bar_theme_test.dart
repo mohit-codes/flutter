@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,7 +71,7 @@ void main() {
           builder: (BuildContext context) {
             return GestureDetector(
               onTap: () {
-                Scaffold.of(context).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: const Text(text),
                   duration: const Duration(seconds: 2),
                   action: SnackBarAction(label: 'ACTION', onPressed: () {}),
@@ -79,7 +79,7 @@ void main() {
               },
               child: const Text('X'),
             );
-          }
+          },
         ),
       ),
     ));
@@ -91,7 +91,7 @@ void main() {
     final Material material = _getSnackBarMaterial(tester);
     final RenderParagraph content = _getSnackBarTextRenderObject(tester, text);
 
-    expect(content.text.style, Typography().white.subhead);
+    expect(content.text.style, Typography.material2018().white.subtitle1);
     expect(material.color, const Color(0xFF333333));
     expect(material.elevation, 6.0);
     expect(material.shape, null);
@@ -99,24 +99,25 @@ void main() {
 
   testWidgets('SnackBar uses values from SnackBarThemeData', (WidgetTester tester) async {
     const String text = 'I am a snack bar.';
+    const String action = 'ACTION';
     final SnackBarThemeData snackBarTheme = _snackBarTheme();
 
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(snackBarTheme: snackBarTheme),
       home: Scaffold(
         body: Builder(
-            builder: (BuildContext context) {
-              return GestureDetector(
-                onTap: () {
-                  Scaffold.of(context).showSnackBar(SnackBar(
-                    content: const Text(text),
-                    duration: const Duration(seconds: 2),
-                    action: SnackBarAction(label: 'ACTION', onPressed: () {}),
-                  ));
-                },
-                child: const Text('X'),
-              );
-            }
+          builder: (BuildContext context) {
+            return GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: const Text(text),
+                  duration: const Duration(seconds: 2),
+                  action: SnackBarAction(label: action, onPressed: () {}),
+                ));
+              },
+              child: const Text('X'),
+            );
+          },
         ),
       ),
     ));
@@ -126,20 +127,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 750));
 
     final Material material = _getSnackBarMaterial(tester);
-    final RawMaterialButton button = _getSnackBarButton(tester);
+    final RenderParagraph button = _getSnackBarActionTextRenderObject(tester, action);
     final RenderParagraph content = _getSnackBarTextRenderObject(tester, text);
 
     expect(content.text.style, snackBarTheme.contentTextStyle);
     expect(material.color, snackBarTheme.backgroundColor);
     expect(material.elevation, snackBarTheme.elevation);
     expect(material.shape, snackBarTheme.shape);
-    expect(button.textStyle.color, snackBarTheme.actionTextColor);
+    expect(button.text.style!.color, snackBarTheme.actionTextColor);
   });
 
   testWidgets('SnackBar widget properties take priority over theme', (WidgetTester tester) async {
     const Color backgroundColor = Colors.purple;
     const Color textColor = Colors.pink;
     const double elevation = 7.0;
+    const String action = 'ACTION';
     const ShapeBorder shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.all(Radius.circular(9.0)),
     );
@@ -148,25 +150,25 @@ void main() {
       theme: ThemeData(snackBarTheme: _snackBarTheme()),
       home: Scaffold(
         body: Builder(
-            builder: (BuildContext context) {
-              return GestureDetector(
-                onTap: () {
-                  Scaffold.of(context).showSnackBar(SnackBar(
-                    backgroundColor: backgroundColor,
-                    elevation: elevation,
-                    shape: shape,
-                    content: const Text('I am a snack bar.'),
-                    duration: const Duration(seconds: 2),
-                    action: SnackBarAction(
-                      textColor: textColor,
-                      label: 'ACTION',
-                      onPressed: () {},
-                    ),
-                  ));
-                },
-                child: const Text('X'),
-              );
-            }
+          builder: (BuildContext context) {
+            return GestureDetector(
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  backgroundColor: backgroundColor,
+                  elevation: elevation,
+                  shape: shape,
+                  content: const Text('I am a snack bar.'),
+                  duration: const Duration(seconds: 2),
+                  action: SnackBarAction(
+                    textColor: textColor,
+                    label: action,
+                    onPressed: () {},
+                  ),
+                ));
+              },
+              child: const Text('X'),
+            );
+          },
         ),
       ),
     ));
@@ -176,18 +178,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 750));
 
     final Material material = _getSnackBarMaterial(tester);
-    final RawMaterialButton button = _getSnackBarButton(tester);
+    final RenderParagraph button = _getSnackBarActionTextRenderObject(tester, action);
 
     expect(material.color, backgroundColor);
     expect(material.elevation, elevation);
     expect(material.shape, shape);
-    expect(button.textStyle.color, textColor);
+    expect(button.text.style!.color, textColor);
   });
 
   testWidgets('SnackBar theme behavior is correct for floating', (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(
-          snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating,)
+        snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
       ),
       home: Scaffold(
         floatingActionButton: FloatingActionButton(
@@ -198,7 +200,7 @@ void main() {
           builder: (BuildContext context) {
             return GestureDetector(
               onTap: () {
-                Scaffold.of(context).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: const Text('I am a snack bar.'),
                   duration: const Duration(seconds: 2),
                   action: SnackBarAction(label: 'ACTION', onPressed: () {}),
@@ -229,7 +231,7 @@ void main() {
   testWidgets('SnackBar theme behavior is correct for fixed', (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: ThemeData(
-          snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.fixed,)
+        snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.fixed),
       ),
       home: Scaffold(
         floatingActionButton: FloatingActionButton(
@@ -240,7 +242,7 @@ void main() {
           builder: (BuildContext context) {
             return GestureDetector(
               onTap: () {
-                Scaffold.of(context).showSnackBar(SnackBar(
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                   content: const Text('I am a snack bar.'),
                   duration: const Duration(seconds: 2),
                   action: SnackBarAction(label: 'ACTION', onPressed: () {}),
@@ -290,13 +292,11 @@ Material _getSnackBarMaterial(WidgetTester tester) {
   );
 }
 
-RawMaterialButton _getSnackBarButton(WidgetTester tester) {
-  return tester.widget<RawMaterialButton>(
-    find.descendant(
-      of: find.byType(SnackBar),
-      matching: find.byType(RawMaterialButton),
-    ).first,
-  );
+RenderParagraph _getSnackBarActionTextRenderObject(WidgetTester tester, String text) {
+  return tester.renderObject(find.descendant(
+    of: find.byType(TextButton),
+    matching: find.text(text),
+  ));
 }
 
 RenderParagraph _getSnackBarTextRenderObject(WidgetTester tester, String text) {

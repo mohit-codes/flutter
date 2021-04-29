@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,15 +7,15 @@ import 'dart:io' as io;
 
 import 'package:file/memory.dart';
 import 'package:flutter_tools/src/base/io.dart';
-import 'package:mockito/mockito.dart';
+import 'package:flutter_tools/src/base/platform.dart';
+import 'package:test/fake.dart';
 
 import '../../src/common.dart';
-import '../../src/context.dart';
 import '../../src/io.dart';
 
 void main() {
-  test('IOOverrides can inject a memory file system', () async {
-    final MemoryFileSystem memoryFileSystem = MemoryFileSystem();
+  testWithoutContext('IOOverrides can inject a memory file system', () async {
+    final MemoryFileSystem memoryFileSystem = MemoryFileSystem.test();
     final FlutterIOOverrides flutterIOOverrides = FlutterIOOverrides(fileSystem: memoryFileSystem);
     await io.IOOverrides.runWithIOOverrides(() async {
       // statics delegate correctly.
@@ -54,20 +54,68 @@ void main() {
       expect(memoryFileSystem.link('ggg').resolveSymbolicLinksSync(), linkB.resolveSymbolicLinksSync());
     }, flutterIOOverrides);
   });
-  testUsingContext('ProcessSignal signals are properly delegated', () async {
-    final MockIoProcessSignal mockSignal = MockIoProcessSignal();
-    final ProcessSignal signalUnderTest = ProcessSignal(mockSignal);
-    final StreamController<io.ProcessSignal> controller = StreamController<io.ProcessSignal>();
 
-    when(mockSignal.watch()).thenAnswer((Invocation invocation) => controller.stream);
-    controller.add(mockSignal);
+  testWithoutContext('ProcessSignal signals are properly delegated', () async {
+    final FakeProcessSignal signal = FakeProcessSignal();
+    final ProcessSignal signalUnderTest = ProcessSignal(signal);
+
+    signal.controller.add(signal);
 
     expect(signalUnderTest, await signalUnderTest.watch().first);
   });
 
-  testUsingContext('ProcessSignal toString() works', () async {
-    expect(io.ProcessSignal.sigint.toString(), ProcessSignal.SIGINT.toString());
+  testWithoutContext('ProcessSignal toString() works', () async {
+    expect(io.ProcessSignal.sigint.toString(), ProcessSignal.sigint.toString());
+  });
+
+  testWithoutContext('exit throws a StateError if called without being overriden', () {
+    expect(() => exit(0), throwsAssertionError);
+  });
+
+  testWithoutContext('exit does not throw a StateError if overriden', () {
+    try {
+      setExitFunctionForTests((int value) {});
+
+      expect(() => exit(0), returnsNormally);
+    } finally {
+      restoreExitFunction();
+    }
+  });
+
+  testWithoutContext('test_api defines the Declarer in a known place', () {
+    expect(Zone.current[#test.declarer], isNotNull);
+  });
+
+  testWithoutContext('listNetworkInterfaces() uses overrides', () async {
+    setNetworkInterfaceLister(
+      ({
+        bool? includeLoopback,
+        bool? includeLinkLocal,
+        InternetAddressType? type,
+      }) async => <NetworkInterface>[],
+    );
+
+    expect(await listNetworkInterfaces(), isEmpty);
+
+    resetNetworkInterfaceLister();
+  });
+
+  testWithoutContext('Does not listen to Posix process signals on windows', () async {
+    final FakePlatform windows = FakePlatform(operatingSystem: 'windows');
+    final FakePlatform linux = FakePlatform(operatingSystem: 'linux');
+    final FakeProcessSignal fakeSignalA = FakeProcessSignal();
+    final FakeProcessSignal fakeSignalB = FakeProcessSignal();
+    fakeSignalA.controller.add(fakeSignalA);
+    fakeSignalB.controller.add(fakeSignalB);
+
+    expect(await PosixProcessSignal(fakeSignalA, platform: windows).watch().isEmpty, true);
+    expect(await PosixProcessSignal(fakeSignalB, platform: linux).watch().first, isNotNull);
   });
 }
 
-class MockIoProcessSignal extends Mock implements io.ProcessSignal {}
+class FakeProcessSignal extends Fake implements io.ProcessSignal {
+  final StreamController<io.ProcessSignal> controller = StreamController<io.ProcessSignal>();
+
+  @override
+  Stream<io.ProcessSignal> watch() => controller.stream;
+}

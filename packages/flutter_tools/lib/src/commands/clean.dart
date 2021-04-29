@@ -1,25 +1,27 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+// @dart = 2.8
 
 import 'package:meta/meta.dart';
 
 import '../base/file_system.dart';
 import '../base/logger.dart';
-import '../base/platform.dart';
 import '../build_info.dart';
-import '../globals.dart';
+import '../globals_null_migrated.dart' as globals;
 import '../ios/xcodeproj.dart';
-import '../macos/xcode.dart';
 import '../project.dart';
 import '../runner/flutter_command.dart';
 
 class CleanCommand extends FlutterCommand {
-  CleanCommand() {
+  CleanCommand({
+    bool verbose = false,
+  }) : _verbose = verbose {
     requiresPubspecYaml();
   }
+
+  final bool _verbose;
 
   @override
   final String name = 'clean';
@@ -35,30 +37,32 @@ class CleanCommand extends FlutterCommand {
     // Clean Xcode to remove intermediate DerivedData artifacts.
     // Do this before removing ephemeral directory, which would delete the xcworkspace.
     final FlutterProject flutterProject = FlutterProject.current();
-    if (xcode.isInstalledAndMeetsVersionCheck) {
+    if (globals.xcode.isInstalledAndMeetsVersionCheck) {
       await _cleanXcode(flutterProject.ios);
       await _cleanXcode(flutterProject.macos);
     }
 
-    final Directory buildDir = fs.directory(getBuildDirectory());
+    final Directory buildDir = globals.fs.directory(getBuildDirectory());
     deleteFile(buildDir);
 
     deleteFile(flutterProject.dartTool);
+    deleteFile(flutterProject.packagesFile);
 
-    final Directory androidEphemeralDirectory = flutterProject.android.ephemeralDirectory;
-    deleteFile(androidEphemeralDirectory);
+    deleteFile(flutterProject.android.ephemeralDirectory);
 
-    final Directory iosEphemeralDirectory = flutterProject.ios.ephemeralDirectory;
-    deleteFile(iosEphemeralDirectory);
+    deleteFile(flutterProject.ios.ephemeralDirectory);
+    deleteFile(flutterProject.ios.ephemeralModuleDirectory);
+    deleteFile(flutterProject.ios.generatedXcodePropertiesFile);
+    deleteFile(flutterProject.ios.generatedEnvironmentVariableExportScript);
+    deleteFile(flutterProject.ios.deprecatedCompiledDartFramework);
+    deleteFile(flutterProject.ios.deprecatedProjectFlutterFramework);
+    deleteFile(flutterProject.ios.flutterPodspec);
 
-    final Directory linuxEphemeralDirectory = flutterProject.linux.ephemeralDirectory;
-    deleteFile(linuxEphemeralDirectory);
-
-    final Directory macosEphemeralDirectory = flutterProject.macos.ephemeralDirectory;
-    deleteFile(macosEphemeralDirectory);
-
-    final Directory windowsEphemeralDirectory = flutterProject.windows.ephemeralDirectory;
-    deleteFile(windowsEphemeralDirectory);
+    deleteFile(flutterProject.linux.ephemeralDirectory);
+    deleteFile(flutterProject.macos.ephemeralDirectory);
+    deleteFile(flutterProject.windows.ephemeralDirectory);
+    deleteFile(flutterProject.flutterPluginsDependenciesFile);
+    deleteFile(flutterProject.flutterPluginsFile);
 
     return const FlutterCommandResult(ExitStatus.success);
   }
@@ -67,15 +71,17 @@ class CleanCommand extends FlutterCommand {
     if (!xcodeProject.existsSync()) {
       return;
     }
-    final Status xcodeStatus = logger.startProgress('Cleaning Xcode workspace...', timeout: timeoutConfiguration.slowOperation);
+    final Status xcodeStatus = globals.logger.startProgress(
+      'Cleaning Xcode workspace...',
+    );
     try {
       final Directory xcodeWorkspace = xcodeProject.xcodeWorkspace;
-      final XcodeProjectInfo projectInfo = await xcodeProjectInterpreter.getInfo(xcodeWorkspace.parent.path);
-      for (String scheme in projectInfo.schemes) {
-        xcodeProjectInterpreter.cleanWorkspace(xcodeWorkspace.path, scheme);
+      final XcodeProjectInfo projectInfo = await globals.xcodeProjectInterpreter.getInfo(xcodeWorkspace.parent.path);
+      for (final String scheme in projectInfo.schemes) {
+        await globals.xcodeProjectInterpreter.cleanWorkspace(xcodeWorkspace.path, scheme, verbose: _verbose);
       }
-    } catch (error) {
-      printTrace('Could not clean Xcode workspace: $error');
+    } on Exception catch (error) {
+      globals.printTrace('Could not clean Xcode workspace: $error');
     } finally {
       xcodeStatus?.stop();
     }
@@ -83,22 +89,30 @@ class CleanCommand extends FlutterCommand {
 
   @visibleForTesting
   void deleteFile(FileSystemEntity file) {
-    if (!file.existsSync()) {
+    // This will throw a FileSystemException if the directory is missing permissions.
+    try {
+      if (!file.existsSync()) {
+        return;
+      }
+    } on FileSystemException catch (err) {
+      globals.printError('Cannot clean ${file.path}.\n$err');
       return;
     }
-    final Status deletionStatus = logger.startProgress('Deleting ${file.basename}...', timeout: timeoutConfiguration.fastOperation);
+    final Status deletionStatus = globals.logger.startProgress(
+      'Deleting ${file.basename}...',
+    );
     try {
       file.deleteSync(recursive: true);
     } on FileSystemException catch (error) {
       final String path = file.path;
-      if (platform.isWindows) {
-        printError(
+      if (globals.platform.isWindows) {
+        globals.printError(
           'Failed to remove $path. '
             'A program may still be using a file in the directory or the directory itself. '
             'To find and stop such a program, see: '
             'https://superuser.com/questions/1333118/cant-delete-empty-folder-because-it-is-used');
       } else {
-        printError('Failed to remove $path: $error');
+        globals.printError('Failed to remove $path: $error');
       }
     } finally {
       deletionStatus.stop();

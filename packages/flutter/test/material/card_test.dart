@@ -1,11 +1,9 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/painting.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../widgets/semantics_tester.dart';
@@ -137,7 +135,7 @@ void main() {
     );
 
     // Default margin is 4
-    expect(tester.getTopLeft(find.byType(Card)), const Offset(0.0, 0.0));
+    expect(tester.getTopLeft(find.byType(Card)), Offset.zero);
     expect(tester.getSize(find.byType(Card)), const Size(108.0, 108.0));
 
     expect(tester.getTopLeft(find.byKey(contentsKey)), const Offset(4.0, 4.0));
@@ -159,10 +157,10 @@ void main() {
     );
 
     // Specified margin is zero
-    expect(tester.getTopLeft(find.byType(Card)), const Offset(0.0, 0.0));
+    expect(tester.getTopLeft(find.byType(Card)), Offset.zero);
     expect(tester.getSize(find.byType(Card)), const Size(100.0, 100.0));
 
-    expect(tester.getTopLeft(find.byKey(contentsKey)), const Offset(0.0, 0.0));
+    expect(tester.getTopLeft(find.byKey(contentsKey)), Offset.zero);
     expect(tester.getSize(find.byKey(contentsKey)), const Size(100.0, 100.0));
   });
 
@@ -187,5 +185,38 @@ void main() {
       );
     }));
     expect(tester.widget<Material>(find.byType(Material)).clipBehavior, Clip.antiAliasWithSaveLayer);
+  });
+
+  testWidgets('Card shadowColor', (WidgetTester tester) async {
+    Material _getCardMaterial(WidgetTester tester) {
+      return tester.widget<Material>(
+        find.descendant(
+          of: find.byType(Card),
+          matching: find.byType(Material),
+        ),
+      );
+    }
+
+    Card _getCard(WidgetTester tester) {
+      return tester.widget<Card>(
+        find.byType(Card),
+      );
+    }
+
+    await tester.pumpWidget(
+      const Card(),
+    );
+
+    expect(_getCard(tester).shadowColor, null);
+    expect(_getCardMaterial(tester).shadowColor, const Color(0xFF000000));
+
+    await tester.pumpWidget(
+      const Card(
+        shadowColor: Colors.red,
+      ),
+    );
+
+    expect(_getCardMaterial(tester).shadowColor, _getCard(tester).shadowColor);
+    expect(_getCardMaterial(tester).shadowColor, Colors.red);
   });
 }

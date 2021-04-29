@@ -1,8 +1,9 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+// @dart = 2.8
+
 import 'dart:convert';
 
 import 'package:file/file.dart';
@@ -10,12 +11,11 @@ import 'package:file/memory.dart';
 
 import 'package:flutter_tools/src/asset.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
-import 'package:flutter_tools/src/base/platform.dart';
-import 'package:flutter_tools/src/cache.dart';
+
+import 'package:flutter_tools/src/globals_null_migrated.dart' as globals;
 
 import '../src/common.dart';
 import '../src/context.dart';
-import '../src/pubspec_schema.dart';
 
 void main() {
   String fixPath(String path) {
@@ -24,7 +24,7 @@ void main() {
     // fixed we fix them here.
     // TODO(dantup): Remove this function once the above issue is fixed and
     // rolls into Flutter.
-    return path?.replaceAll('/', fs.path.separator);
+    return path?.replaceAll('/', globals.fs.path.separator);
   }
   void writePubspecFile(String path, String name, { String fontsSection }) {
     if (fontsSection == null) {
@@ -37,7 +37,7 @@ $fontsSection
 ''';
     }
 
-    fs.file(fixPath(path))
+    globals.fs.file(fixPath(path))
       ..createSync(recursive: true)
       ..writeAsStringSync('''
 name: $name
@@ -48,14 +48,8 @@ $fontsSection
 ''');
   }
 
-  void establishFlutterRoot() {
-    // Setting flutterRoot here so that it picks up the MemoryFileSystem's
-    // path separator.
-    Cache.flutterRoot = getFlutterRoot();
-  }
-
   void writePackagesFile(String packages) {
-    fs.file('.packages')
+    globals.fs.file('.packages')
       ..createSync()
       ..writeAsStringSync(packages);
   }
@@ -67,10 +61,10 @@ $fontsSection
     String expectedAssetManifest,
   ) async {
     final AssetBundle bundle = AssetBundleFactory.instance.createBundle();
-    await bundle.build(manifestPath: 'pubspec.yaml');
+    await bundle.build(manifestPath: 'pubspec.yaml', packagesPath: '.packages');
 
-    for (String packageName in packages) {
-      for (String packageFont in packageFonts) {
+    for (final String packageName in packages) {
+      for (final String packageFont in packageFonts) {
         final String entryKey = 'packages/$packageName/$packageFont';
         expect(bundle.entries.containsKey(entryKey), true);
         expect(
@@ -79,7 +73,7 @@ $fontsSection
         );
       }
 
-      for (String localFont in localFonts) {
+      for (final String localFont in localFonts) {
         expect(bundle.entries.containsKey(localFont), true);
         expect(
           utf8.decode(await bundle.entries[localFont].contentsAsBytes()),
@@ -95,7 +89,7 @@ $fontsSection
   }
 
   void writeFontAsset(String path, String font) {
-    fs.file(fixPath('$path$font'))
+    globals.fs.file(fixPath('$path$font'))
       ..createSync(recursive: true)
       ..writeAsStringSync(font);
   }
@@ -105,7 +99,7 @@ $fontsSection
 
     setUp(() async {
       testFileSystem = MemoryFileSystem(
-        style: platform.isWindows
+        style: globals.platform.isWindows
           ? FileSystemStyle.windows
           : FileSystemStyle.posix,
       );
@@ -113,15 +107,12 @@ $fontsSection
     });
 
     testUsingContext('App includes neither font manifest nor fonts when no defines fonts', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       writePubspecFile('pubspec.yaml', 'test');
       writePackagesFile('test_package:p/p/lib/');
       writePubspecFile('p/p/pubspec.yaml', 'test_package');
 
       final AssetBundle bundle = AssetBundleFactory.instance.createBundle();
-      await bundle.build(manifestPath: 'pubspec.yaml');
+      await bundle.build(manifestPath: 'pubspec.yaml', packagesPath: '.packages');
       expect(bundle.entries.length, 3); // LICENSE, AssetManifest, FontManifest
       expect(bundle.entries.containsKey('FontManifest.json'), isTrue);
     }, overrides: <Type, Generator>{
@@ -130,9 +121,6 @@ $fontsSection
     });
 
     testUsingContext('App font uses font file from package', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       const String fontsSection = '''
        - family: foo
          fonts:
@@ -159,9 +147,6 @@ $fontsSection
     });
 
     testUsingContext('App font uses local font file and package font file', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       const String fontsSection = '''
        - family: foo
          fonts:
@@ -192,9 +177,6 @@ $fontsSection
     });
 
     testUsingContext('App uses package font with own font file', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       writePubspecFile('pubspec.yaml', 'test');
       writePackagesFile('test_package:p/p/lib/');
       const String fontsSection = '''
@@ -226,9 +208,6 @@ $fontsSection
     });
 
     testUsingContext('App uses package font with font file from another package', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       writePubspecFile('pubspec.yaml', 'test');
       writePackagesFile('test_package:p/p/lib/\ntest_package2:p2/p/lib/');
       const String fontsSection = '''
@@ -261,9 +240,6 @@ $fontsSection
     });
 
     testUsingContext('App uses package font with properties and own font file', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       writePubspecFile('pubspec.yaml', 'test');
       writePackagesFile('test_package:p/p/lib/');
 
@@ -297,9 +273,6 @@ $fontsSection
     });
 
     testUsingContext('App uses local font and package font with own font file.', () async {
-      establishFlutterRoot();
-      writeEmptySchemaFile(fs);
-
       const String fontsSection = '''
        - family: foo
          fonts:

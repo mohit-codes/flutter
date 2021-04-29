@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'gesture_tester.dart';
 
@@ -26,7 +26,7 @@ void main() {
     int updated = 0;
     int ended = 0;
 
-    Offset startGlobalPosition;
+    Offset? startGlobalPosition;
 
     void onStart(ForcePressDetails details) {
       startGlobalPosition = details.globalPosition;
@@ -409,7 +409,7 @@ void main() {
     int updated = 0;
     int ended = 0;
 
-    Offset startGlobalPosition;
+    Offset? startGlobalPosition;
 
     void onStart(ForcePressDetails details) {
       startGlobalPosition = details.globalPosition;

@@ -1,11 +1,10 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show debugDumpRenderTree;
 
 class CardModel {
   CardModel(this.value, this.height) {
@@ -19,6 +18,8 @@ class CardModel {
 }
 
 class CardCollection extends StatefulWidget {
+  const CardCollection({Key key}) : super(key: key);
+
   @override
   CardCollectionState createState() => CardCollectionState();
 }
@@ -181,7 +182,7 @@ class CardCollectionState extends State<CardCollection> {
     });
   }
 
-  Widget buildDrawerCheckbox(String label, bool value, void callback(), { bool enabled = true }) {
+  Widget buildDrawerCheckbox(String label, bool value, void Function() callback, { bool enabled = true }) {
     return ListTile(
       onTap: enabled ? callback : null,
       title: Text(label),
@@ -231,7 +232,7 @@ class CardCollectionState extends State<CardCollection> {
     );
   }
 
-  Widget _buildAppBar(BuildContext context) {
+  AppBar _buildAppBar(BuildContext context) {
     return AppBar(
       actions: <Widget>[
         Text(_dismissDirectionText(_dismissDirection)),
@@ -240,7 +241,7 @@ class CardCollectionState extends State<CardCollection> {
         padding: const EdgeInsets.only(left: 72.0),
         height: 128.0,
         alignment: const Alignment(-1.0, 0.5),
-        child: Text('Swipe Away: ${_cardModels.length}', style: Theme.of(context).primaryTextTheme.title),
+        child: Text('Swipe Away: ${_cardModels.length}', style: Theme.of(context).primaryTextTheme.headline6),
       ),
     );
   }
@@ -305,7 +306,7 @@ class CardCollectionState extends State<CardCollection> {
       rightArrowIcon = Opacity(opacity: 0.1, child: rightArrowIcon);
 
     final ThemeData theme = Theme.of(context);
-    final TextStyle backgroundTextStyle = theme.primaryTextTheme.title;
+    final TextStyle backgroundTextStyle = theme.primaryTextTheme.headline6;
 
     // The background Widget appears behind the Dismissible card when the card
     // moves to the left or right. The Positioned widget ensures that the
@@ -390,7 +391,7 @@ class CardCollectionState extends State<CardCollection> {
 }
 
 void main() {
-  runApp(MaterialApp(
+  runApp(const MaterialApp(
     title: 'Cards',
     home: CardCollection(),
   ));

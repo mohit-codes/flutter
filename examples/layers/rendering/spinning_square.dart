@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ class NonStopVSync implements TickerProvider {
 void main() {
   // We first create a render object that represents a green box.
   final RenderBox green = RenderDecoratedBox(
-    decoration: const BoxDecoration(color: Color(0xFF00FF00))
+    decoration: const BoxDecoration(color: Color(0xFF00FF00)),
   );
   // Second, we wrap that green box in a render object that forces the green box
   // to have a specific size.

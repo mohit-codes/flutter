@@ -1,14 +1,14 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 const Color kTitleColor = Color(0xFF333333);
 const String kTitleString = 'Hello World';
 
-Future<void> pumpApp(WidgetTester tester, { GenerateAppTitle onGenerateTitle }) async {
+Future<void> pumpApp(WidgetTester tester, { GenerateAppTitle? onGenerateTitle }) async {
   await tester.pumpWidget(
     WidgetsApp(
       supportedLocales: const <Locale>[
@@ -22,7 +22,7 @@ Future<void> pumpApp(WidgetTester tester, { GenerateAppTitle onGenerateTitle }) 
         return PageRouteBuilder<void>(
           pageBuilder: (BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) {
             return Container();
-          }
+          },
         );
       },
     ),
@@ -55,6 +55,6 @@ void main() {
     await tester.pump();
     expect(tester.widget<Title>(find.byType(Title)).title, 'en_US');
     expect(tester.widget<Title>(find.byType(Title)).color, kTitleColor);
-  }, skip: isBrowser);
+  });
 
 }

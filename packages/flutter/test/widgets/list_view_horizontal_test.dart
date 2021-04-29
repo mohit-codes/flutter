@@ -1,18 +1,17 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const List<int> items = <int>[0, 1, 2, 3, 4, 5];
 
-Widget buildFrame({ bool reverse = false, @required TextDirection textDirection }) {
+Widget buildFrame({ bool reverse = false, required TextDirection textDirection }) {
   return Directionality(
     textDirection: textDirection,
     child: Center(
-      child: Container(
+      child: SizedBox(
         height: 50.0,
         child: ListView(
           itemExtent: 290.0,
@@ -20,9 +19,7 @@ Widget buildFrame({ bool reverse = false, @required TextDirection textDirection 
           reverse: reverse,
           physics: const BouncingScrollPhysics(),
           children: items.map<Widget>((int item) {
-            return Container(
-              child: Text('$item'),
-            );
+            return Text('$item');
           }).toList(),
         ),
       ),

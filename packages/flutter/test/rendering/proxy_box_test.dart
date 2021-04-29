@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,8 +9,7 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/src/scheduler/ticker.dart';
-import '../flutter_test_alternative.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'rendering_tester.dart';
 
@@ -25,11 +24,11 @@ void main() {
 
     layout(fittedBox, phase: EnginePhase.flushSemantics);
     final Matrix4 transform = Matrix4.identity();
-    fittedBox.applyPaintTransform(fittedBox.child, transform);
+    fittedBox.applyPaintTransform(fittedBox.child!, transform);
     expect(transform, Matrix4.zero());
 
     final BoxHitTestResult hitTestResult = BoxHitTestResult();
-    expect(fittedBox.hitTestChildren(hitTestResult), isFalse);
+    expect(fittedBox.hitTestChildren(hitTestResult, position: Offset.zero), isFalse);
   });
 
   test('RenderFittedBox does not paint with empty sizes', () {
@@ -82,21 +81,25 @@ void main() {
   });
 
   test('RenderPhysicalModel compositing on non-Fuchsia', () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    for (final TargetPlatform platform in TargetPlatform.values) {
+      if (platform == TargetPlatform.fuchsia) {
+        continue;
+      }
+      debugDefaultTargetPlatformOverride = platform;
 
-    final RenderPhysicalModel root = RenderPhysicalModel(color: const Color(0xffff00ff));
-    layout(root, phase: EnginePhase.composite);
-    expect(root.needsCompositing, isTrue);
+      final RenderPhysicalModel root = RenderPhysicalModel(color: const Color(0xffff00ff));
+      layout(root, phase: EnginePhase.composite);
+      expect(root.needsCompositing, isTrue);
 
-    // Flutter now composites physical shapes on all platforms.
-    root.elevation = 1.0;
-    pumpFrame(phase: EnginePhase.composite);
-    expect(root.needsCompositing, isTrue);
+      // Flutter now composites physical shapes on all platforms.
+      root.elevation = 1.0;
+      pumpFrame(phase: EnginePhase.composite);
+      expect(root.needsCompositing, isTrue);
 
-    root.elevation = 0.0;
-    pumpFrame(phase: EnginePhase.composite);
-    expect(root.needsCompositing, isTrue);
-
+      root.elevation = 0.0;
+      pumpFrame(phase: EnginePhase.composite);
+      expect(root.needsCompositing, isTrue);
+    }
     debugDefaultTargetPlatformOverride = null;
   });
 
@@ -122,44 +125,53 @@ void main() {
   });
 
   group('RenderPhysicalShape', () {
-    setUp(() {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    });
-
     test('shape change triggers repaint', () {
-      final RenderPhysicalShape root = RenderPhysicalShape(
-        color: const Color(0xffff00ff),
-        clipper: const ShapeBorderClipper(shape: CircleBorder()),
-      );
-      layout(root, phase: EnginePhase.composite);
-      expect(root.debugNeedsPaint, isFalse);
+      for (final TargetPlatform platform in TargetPlatform.values) {
+        if (platform == TargetPlatform.fuchsia) {
+          continue;
+        }
+        debugDefaultTargetPlatformOverride = platform;
 
-      // Same shape, no repaint.
-      root.clipper = const ShapeBorderClipper(shape: CircleBorder());
-      expect(root.debugNeedsPaint, isFalse);
+        final RenderPhysicalShape root = RenderPhysicalShape(
+          color: const Color(0xffff00ff),
+          clipper: const ShapeBorderClipper(shape: CircleBorder()),
+        );
+        layout(root, phase: EnginePhase.composite);
+        expect(root.debugNeedsPaint, isFalse);
 
-      // Different shape triggers repaint.
-      root.clipper = const ShapeBorderClipper(shape: StadiumBorder());
-      expect(root.debugNeedsPaint, isTrue);
+        // Same shape, no repaint.
+        root.clipper = const ShapeBorderClipper(shape: CircleBorder());
+        expect(root.debugNeedsPaint, isFalse);
+
+        // Different shape triggers repaint.
+        root.clipper = const ShapeBorderClipper(shape: StadiumBorder());
+        expect(root.debugNeedsPaint, isTrue);
+      }
+      debugDefaultTargetPlatformOverride = null;
     });
 
     test('compositing on non-Fuchsia', () {
-      final RenderPhysicalShape root = RenderPhysicalShape(
-        color: const Color(0xffff00ff),
-        clipper: const ShapeBorderClipper(shape: CircleBorder()),
-      );
-      layout(root, phase: EnginePhase.composite);
-      expect(root.needsCompositing, isTrue);
+      for (final TargetPlatform platform in TargetPlatform.values) {
+        if (platform == TargetPlatform.fuchsia) {
+          continue;
+        }
+        debugDefaultTargetPlatformOverride = platform;
+        final RenderPhysicalShape root = RenderPhysicalShape(
+          color: const Color(0xffff00ff),
+          clipper: const ShapeBorderClipper(shape: CircleBorder()),
+        );
+        layout(root, phase: EnginePhase.composite);
+        expect(root.needsCompositing, isTrue);
 
-      // On non-Fuchsia platforms, we composite physical shape layers
-      root.elevation = 1.0;
-      pumpFrame(phase: EnginePhase.composite);
-      expect(root.needsCompositing, isTrue);
+        // On non-Fuchsia platforms, we composite physical shape layers
+        root.elevation = 1.0;
+        pumpFrame(phase: EnginePhase.composite);
+        expect(root.needsCompositing, isTrue);
 
-      root.elevation = 0.0;
-      pumpFrame(phase: EnginePhase.composite);
-      expect(root.needsCompositing, isTrue);
-
+        root.elevation = 0.0;
+        pumpFrame(phase: EnginePhase.composite);
+        expect(root.needsCompositing, isTrue);
+      }
       debugDefaultTargetPlatformOverride = null;
     });
   });
@@ -184,18 +196,22 @@ void main() {
     boundary = RenderRepaintBoundary();
     final RenderStack stack = RenderStack()..alignment = Alignment.topLeft;
     final RenderDecoratedBox blackBox = RenderDecoratedBox(
-        decoration: const BoxDecoration(color: Color(0xff000000)),
-        child: RenderConstrainedBox(
-          additionalConstraints: BoxConstraints.tight(const Size.square(20.0)),
-        ));
-    stack.add(RenderOpacity()
-      ..opacity = 0.5
-      ..child = blackBox);
+      decoration: const BoxDecoration(color: Color(0xff000000)),
+      child: RenderConstrainedBox(
+        additionalConstraints: BoxConstraints.tight(const Size.square(20.0)),
+      ),
+    );
+    stack.add(
+      RenderOpacity()
+        ..opacity = 0.5
+        ..child = blackBox,
+    );
     final RenderDecoratedBox whiteBox = RenderDecoratedBox(
-        decoration: const BoxDecoration(color: Color(0xffffffff)),
-        child: RenderConstrainedBox(
-          additionalConstraints: BoxConstraints.tight(const Size.square(10.0)),
-        ));
+      decoration: const BoxDecoration(color: Color(0xffffffff)),
+      child: RenderConstrainedBox(
+        additionalConstraints: BoxConstraints.tight(const Size.square(10.0)),
+      ),
+    );
     final RenderPositionedBox positioned = RenderPositionedBox(
       widthFactor: 2.0,
       heightFactor: 2.0,
@@ -209,7 +225,7 @@ void main() {
     image = await boundary.toImage();
     expect(image.width, equals(20));
     expect(image.height, equals(20));
-    ByteData data = await image.toByteData();
+    ByteData data = (await image.toByteData())!;
 
     int getPixel(int x, int y) => data.getUint32((x + y * image.width) * 4);
 
@@ -218,12 +234,12 @@ void main() {
     expect(getPixel(0, 0), equals(0x00000080));
     expect(getPixel(image.width - 1, 0 ), equals(0xffffffff));
 
-    final OffsetLayer layer = boundary.debugLayer;
+    final OffsetLayer layer = boundary.debugLayer! as OffsetLayer;
 
     image = await layer.toImage(Offset.zero & const Size(20.0, 20.0));
     expect(image.width, equals(20));
     expect(image.height, equals(20));
-    data = await image.toByteData();
+    data = (await image.toByteData())!;
     expect(getPixel(0, 0), equals(0x00000080));
     expect(getPixel(image.width - 1, 0 ), equals(0xffffffff));
 
@@ -231,7 +247,7 @@ void main() {
     image = await layer.toImage(const Offset(-10.0, -10.0) & const Size(30.0, 30.0));
     expect(image.width, equals(30));
     expect(image.height, equals(30));
-    data = await image.toByteData();
+    data = (await image.toByteData())!;
     expect(getPixel(0, 0), equals(0x00000000));
     expect(getPixel(10, 10), equals(0x00000080));
     expect(getPixel(image.width - 1, 0), equals(0x00000000));
@@ -241,12 +257,12 @@ void main() {
     image = await layer.toImage(const Offset(-10.0, -10.0) & const Size(30.0, 30.0), pixelRatio: 2.0);
     expect(image.width, equals(60));
     expect(image.height, equals(60));
-    data = await image.toByteData();
+    data = (await image.toByteData())!;
     expect(getPixel(0, 0), equals(0x00000000));
     expect(getPixel(20, 20), equals(0x00000080));
     expect(getPixel(image.width - 1, 0), equals(0x00000000));
     expect(getPixel(image.width - 1, 20), equals(0xffffffff));
-  }, skip: isBrowser);
+  }, skip: isBrowser); // https://github.com/flutter/flutter/issues/42767
 
   test('RenderOpacity does not composite if it is transparent', () {
     final RenderOpacity renderOpacity = RenderOpacity(
@@ -277,7 +293,7 @@ void main() {
 
   test('RenderAnimatedOpacity does not composite if it is transparent', () async {
     final Animation<double> opacityAnimation = AnimationController(
-      vsync: _FakeTickerProvider(),
+      vsync: FakeTickerProvider(),
     )..value = 0.0;
 
     final RenderAnimatedOpacity renderAnimatedOpacity = RenderAnimatedOpacity(
@@ -292,7 +308,7 @@ void main() {
 
   test('RenderAnimatedOpacity does not composite if it is opaque', () {
     final Animation<double> opacityAnimation = AnimationController(
-      vsync: _FakeTickerProvider(),
+      vsync: FakeTickerProvider(),
     )..value = 1.0;
 
     final RenderAnimatedOpacity renderAnimatedOpacity = RenderAnimatedOpacity(
@@ -307,7 +323,7 @@ void main() {
 
   test('RenderAnimatedOpacity reuses its layer', () {
     final Animation<double> opacityAnimation = AnimationController(
-      vsync: _FakeTickerProvider(),
+      vsync: FakeTickerProvider(),
     )..value = 0.5;  // must not be 0 or 1.0. Otherwise, it won't create a layer
 
     _testLayerReuse<OpacityLayer>(RenderAnimatedOpacity(
@@ -419,6 +435,7 @@ void main() {
     _testLayerReuse<ClipRectLayer>(RenderFittedBox(
       alignment: Alignment.center,
       fit: BoxFit.cover,
+      clipBehavior: Clip.hardEdge,
       // Inject opacity under the clip to force compositing.
       child: RenderOpacity(
         opacity: 0.5,
@@ -455,6 +472,101 @@ void main() {
     // transform -> clip
     _testFittedBoxWithClipRectLayer();
   });
+
+  test('RenderFittedBox respects clipBehavior', () {
+    const BoxConstraints viewport = BoxConstraints(maxHeight: 100.0, maxWidth: 100.0);
+    final TestClipPaintingContext context = TestClipPaintingContext();
+
+    // By default, clipBehavior should be Clip.none
+    final RenderFittedBox defaultBox = RenderFittedBox(child: box200x200, fit: BoxFit.none);
+    layout(defaultBox, constraints: viewport, phase: EnginePhase.composite, onErrors: expectOverflowedErrors);
+    defaultBox.paint(context, Offset.zero);
+    expect(context.clipBehavior, equals(Clip.none));
+
+    for (final Clip clip in Clip.values) {
+      final RenderFittedBox box = RenderFittedBox(child: box200x200, fit: BoxFit.none, clipBehavior: clip);
+      layout(box, constraints: viewport, phase: EnginePhase.composite, onErrors: expectOverflowedErrors);
+      box.paint(context, Offset.zero);
+      expect(context.clipBehavior, equals(clip));
+    }
+  });
+
+  test('RenderMouseRegion can change properties when detached', () {
+    final RenderMouseRegion object = RenderMouseRegion();
+    object
+      ..opaque = false
+      ..onEnter = (_) {}
+      ..onExit = (_) {}
+      ..onHover = (_) {};
+    // Passes if no error is thrown
+  });
+
+  test('RenderFractionalTranslation updates its semantics after its translation value is set', () {
+    final _TestSemanticsUpdateRenderFractionalTranslation box = _TestSemanticsUpdateRenderFractionalTranslation(
+      translation: const Offset(0.5, 0.5),
+    );
+    layout(box, constraints: BoxConstraints.tight(const Size(200.0, 200.0)));
+    expect(box.markNeedsSemanticsUpdateCallCount, 1);
+    box.translation = const Offset(0.4, 0.4);
+    expect(box.markNeedsSemanticsUpdateCallCount, 2);
+    box.translation = const Offset(0.3, 0.3);
+    expect(box.markNeedsSemanticsUpdateCallCount, 3);
+  });
+
+  test('RenderFollowerLayer hit test without a leader layer and the showWhenUnlinked is true', () {
+    final RenderFollowerLayer follower = RenderFollowerLayer(
+      link: LayerLink(),
+      showWhenUnlinked: true,
+      child: RenderSizedBox(const Size(1.0, 1.0)),
+    );
+    layout(follower, constraints: BoxConstraints.tight(const Size(200.0, 200.0)));
+    final BoxHitTestResult hitTestResult = BoxHitTestResult();
+    expect(follower.hitTest(hitTestResult, position: Offset.zero), isTrue);
+  });
+
+  test('RenderFollowerLayer hit test without a leader layer and the showWhenUnlinked is false', () {
+    final RenderFollowerLayer follower = RenderFollowerLayer(
+      link: LayerLink(),
+      showWhenUnlinked: false,
+      child: RenderSizedBox(const Size(1.0, 1.0)),
+    );
+    layout(follower, constraints: BoxConstraints.tight(const Size(200.0, 200.0)));
+    final BoxHitTestResult hitTestResult = BoxHitTestResult();
+    expect(follower.hitTest(hitTestResult, position: Offset.zero), isFalse);
+  });
+
+  test('RenderFollowerLayer hit test with a leader layer and the showWhenUnlinked is true', () {
+    // Creates a layer link with a leader.
+    final LayerLink link = LayerLink();
+    final LeaderLayer leader = LeaderLayer(link: link);
+    leader.attach(Object());
+
+    final RenderFollowerLayer follower = RenderFollowerLayer(
+      link: link,
+      showWhenUnlinked: true,
+      child: RenderSizedBox(const Size(1.0, 1.0)),
+    );
+    layout(follower, constraints: BoxConstraints.tight(const Size(200.0, 200.0)));
+    final BoxHitTestResult hitTestResult = BoxHitTestResult();
+    expect(follower.hitTest(hitTestResult, position: Offset.zero), isTrue);
+  });
+
+  test('RenderFollowerLayer hit test with a leader layer and the showWhenUnlinked is false', () {
+    // Creates a layer link with a leader.
+    final LayerLink link = LayerLink();
+    final LeaderLayer leader = LeaderLayer(link: link);
+    leader.attach(Object());
+
+    final RenderFollowerLayer follower = RenderFollowerLayer(
+      link: link,
+      showWhenUnlinked: false,
+      child: RenderSizedBox(const Size(1.0, 1.0)),
+    );
+    layout(follower, constraints: BoxConstraints.tight(const Size(200.0, 200.0)));
+    final BoxHitTestResult hitTestResult = BoxHitTestResult();
+    // The follower is still hit testable because there is a leader layer.
+    expect(follower.hitTest(hitTestResult, position: Offset.zero), isTrue);
+  });
 }
 
 class _TestRectClipper extends CustomClipper<Rect> {
@@ -483,65 +595,15 @@ class _TestRRectClipper extends CustomClipper<RRect> {
   bool shouldReclip(_TestRRectClipper oldClipper) => true;
 }
 
-class _FakeTickerProvider implements TickerProvider {
-  @override
-  Ticker createTicker(TickerCallback onTick, [ bool disableAnimations = false ]) {
-    return _FakeTicker();
-  }
-}
-
-class _FakeTicker implements Ticker {
-  @override
-  bool muted;
-
-  @override
-  void absorbTicker(Ticker originalTicker) { }
-
-  @override
-  String get debugLabel => null;
-
-  @override
-  bool get isActive => null;
-
-  @override
-  bool get isTicking => null;
-
-  @override
-  bool get scheduled => null;
-
-  @override
-  bool get shouldScheduleTick => null;
-
-  @override
-  void dispose() { }
-
-  @override
-  void scheduleTick({ bool rescheduling = false }) { }
-
-  @override
-  TickerFuture start() {
-    return null;
-  }
-
-  @override
-  void stop({ bool canceled = false }) { }
-
-  @override
-  void unscheduleTick() { }
-
-  @override
-  String toString({ bool debugIncludeStack = false }) => super.toString();
-}
-
 // Forces two frames and checks that:
 // - a layer is created on the first frame
 // - the layer is reused on the second frame
-void _testLayerReuse<L extends Layer>(RenderObject renderObject) {
+void _testLayerReuse<L extends Layer>(RenderBox renderObject) {
   expect(L, isNot(Layer));
   expect(renderObject.debugLayer, null);
   layout(renderObject, phase: EnginePhase.paint, constraints: BoxConstraints.tight(const Size(10, 10)));
-  final Layer layer = renderObject.debugLayer;
-  expect(layer, isInstanceOf<L>());
+  final Layer layer = renderObject.debugLayer!;
+  expect(layer, isA<L>());
   expect(layer, isNotNull);
 
   // Mark for repaint otherwise pumpFrame is a noop.
@@ -560,4 +622,19 @@ class _TestPathClipper extends CustomClipper<Path> {
   }
   @override
   bool shouldReclip(_TestPathClipper oldClipper) => false;
+}
+
+class _TestSemanticsUpdateRenderFractionalTranslation extends RenderFractionalTranslation {
+  _TestSemanticsUpdateRenderFractionalTranslation({
+    required Offset translation,
+    RenderBox? child,
+  }) : super(translation: translation, child: child);
+
+  int markNeedsSemanticsUpdateCallCount = 0;
+
+  @override
+  void markNeedsSemanticsUpdate() {
+    markNeedsSemanticsUpdateCallCount++;
+    super.markNeedsSemanticsUpdate();
+  }
 }

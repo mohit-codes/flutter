@@ -1,11 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
-
 import 'package:flutter_devicelab/framework/adb.dart';
 import 'package:flutter_devicelab/framework/framework.dart';
+import 'package:flutter_devicelab/framework/host_agent.dart';
+import 'package:flutter_devicelab/framework/task_result.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 
 Future<String> _runWithMode(String mode, String deviceId) async {
@@ -16,12 +16,14 @@ Future<String> _runWithMode(String mode, String deviceId) async {
     'test_driver/scroll_perf.dart',
     '-d',
     deviceId,
+    '--screenshot',
+    hostAgent.dumpDirectory.path,
   ]);
   return stderr.toString();
 }
 
 Future<TaskResult> run() async {
-  cd('${flutterDirectory.path}/examples/flutter_gallery');
+  cd('${flutterDirectory.path}/dev/integration_tests/flutter_gallery');
   final Device device = await devices.workingDevice;
   await device.unlock();
   final String deviceId = device.deviceId;

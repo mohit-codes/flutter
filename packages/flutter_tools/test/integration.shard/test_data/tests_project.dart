@@ -1,6 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// @dart = 2.8
 
 
 import 'package:file/file.dart';
@@ -14,7 +16,7 @@ class TestsProject extends Project {
   final String pubspec = '''
   name: test
   environment:
-    sdk: ">=2.0.0-dev.68.0 <3.0.0"
+    sdk: ">=2.12.0-0 <3.0.0"
 
   dependencies:
     flutter:
@@ -45,9 +47,10 @@ class TestsProject extends Project {
     return super.setUpIn(dir);
   }
 
-  String get testFilePath => fs.path.join(dir.path, 'test', 'test.dart');
+  String get testFilePath => fileSystem.path.join(dir.path, 'test', 'test.dart');
 
   Uri get breakpointUri => Uri.file(testFilePath);
+  Uri get breakpointAppUri => Uri.parse('org-dartlang-app:///test.dart');
 
   int get breakpointLine => lineContaining(testContent, '// BREAKPOINT');
 }

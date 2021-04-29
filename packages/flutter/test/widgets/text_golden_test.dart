@@ -1,11 +1,10 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-@TestOn('!chrome') // Flaky on web
-import 'package:flutter_test/flutter_test.dart';
+@TestOn('!chrome')
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('Centered text', (WidgetTester tester) async {
@@ -30,10 +29,7 @@ void main() {
 
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Centered.png',
-        version: null,
-      ),
+      matchesGoldenFile('text_golden.Centered.png'),
     );
 
     await tester.pumpWidget(
@@ -57,10 +53,7 @@ void main() {
 
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Centered.wrap.png',
-        version: null,
-      ),
+      matchesGoldenFile('text_golden.Centered.wrap.png'),
     );
   });
 
@@ -82,7 +75,7 @@ void main() {
             style: TextStyle(
               foreground: Paint()
                 ..color = black
-                ..shader = linearGradient
+                ..shader = linearGradient,
             ),
           ),
         ),
@@ -91,10 +84,29 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'text_golden.Foreground.gradient.png',
-        version: null,
+      matchesGoldenFile('text_golden.Foreground.gradient.png'),
+    );
+
+    await tester.pumpWidget(
+      Align(
+        alignment: Alignment.topLeft,
+        child: RepaintBoundary(
+          child: Text('Hello',
+            textDirection: TextDirection.ltr,
+            style: TextStyle(
+              foreground: Paint()
+                ..color = black
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.0,
+            ),
+          ),
+        ),
       ),
+    );
+
+    await expectLater(
+      find.byType(RepaintBoundary),
+      matchesGoldenFile('text_golden.Foreground.stroke.png'),
     );
 
     await tester.pumpWidget(
@@ -108,6 +120,7 @@ void main() {
                 ..color = black
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 2.0
+                ..shader = linearGradient,
             ),
           ),
         ),
@@ -116,36 +129,7 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'text_golden.Foreground.stroke.png',
-        version: null,
-      ),
-    );
-
-    await tester.pumpWidget(
-      Align(
-        alignment: Alignment.topLeft,
-        child: RepaintBoundary(
-          child: Text('Hello',
-            textDirection: TextDirection.ltr,
-            style: TextStyle(
-              foreground: Paint()
-                ..color = black
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.0
-                ..shader = linearGradient
-            ),
-          ),
-        ),
-      ),
-    );
-
-    await expectLater(
-      find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'text_golden.Foreground.stroke_and_gradient.png',
-        version: null,
-      ),
+      matchesGoldenFile('text_golden.Foreground.stroke_and_gradient.png'),
     );
   });
 
@@ -195,10 +179,7 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary),
-      matchesGoldenFile(
-        'text_golden.Background.png',
-        version: null,
-      ),
+      matchesGoldenFile('text_golden.Background.png'),
     );
   });
 
@@ -234,10 +215,7 @@ void main() {
 
     await expectLater(
       find.byType(RepaintBoundary).first,
-      matchesGoldenFile(
-        'text_golden.Fade.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.Fade.png'),
     );
   });
 
@@ -262,10 +240,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.StrutDefault.png',
-        version: null,
-      ),
+      matchesGoldenFile('text_golden.StrutDefault.png'),
     );
   });
 
@@ -292,10 +267,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Strut.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.Strut.1.png'),
     );
   });
 
@@ -323,10 +295,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Strut.2.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.Strut.2.png'),
     );
   });
 
@@ -377,10 +346,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Strut.3.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.Strut.3.png'),
     );
   });
 
@@ -415,10 +381,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Strut.4.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.Strut.4.png'),
     );
   });
 
@@ -469,10 +432,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.StrutForce.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.StrutForce.1.png'),
     );
   });
 
@@ -510,10 +470,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.Decoration.1.png',
-        version: 0,
-      ),
+      matchesGoldenFile('text_golden.Decoration.1.png'),
     );
   });
 
@@ -552,10 +509,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.DecorationThickness.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.DecorationThickness.1.png'),
     );
   });
 
@@ -610,7 +564,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           child: Checkbox(value: false, onChanged: null),
                         ),
@@ -649,10 +603,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidget.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidget.1.png'),
     );
   });
 
@@ -697,10 +648,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidget.2.png',
-        version: 2,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidget.2.png'),
     );
   });
 
@@ -829,10 +777,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetNest.1.png',
-        version: 3,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidgetNest.1.png'),
     );
   });
 
@@ -891,7 +836,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.baseline,
                           baseline: TextBaseline.alphabetic,
@@ -939,10 +884,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetBaseline.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidgetBaseline.1.png'),
     );
   });
 
@@ -1001,7 +943,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.aboveBaseline,
                           baseline: TextBaseline.alphabetic,
@@ -1049,10 +991,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetAboveBaseline.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidgetAboveBaseline.1.png'),
     );
   });
 
@@ -1111,7 +1050,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.belowBaseline,
                           baseline: TextBaseline.alphabetic,
@@ -1159,10 +1098,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetBelowBaseline.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidgetBelowBaseline.1.png'),
     );
   });
 
@@ -1221,7 +1157,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.top,
                           baseline: TextBaseline.alphabetic,
@@ -1269,10 +1205,7 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetTop.1.png',
-        version: 1,
-      ),
+      matchesGoldenFile('text_golden.TextInlineWidgetTop.1.png'),
     );
   });
 
@@ -1331,7 +1264,7 @@ void main() {
                             ),
                           ),
                         ),
-                        TextSpan(text: 'hello world! sieze the day!'),
+                        TextSpan(text: 'hello world! seize the day!'),
                         WidgetSpan(
                           alignment: PlaceholderAlignment.middle,
                           baseline: TextBaseline.alphabetic,
@@ -1379,10 +1312,50 @@ void main() {
     );
     await expectLater(
       find.byType(Container),
-      matchesGoldenFile(
-        'text_golden.TextInlineWidgetMiddle.1.png',
-        version: 1,
+      matchesGoldenFile('text_golden.TextInlineWidgetMiddle.1.png'),
+    );
+  });
+
+  testWidgets('Text TextHeightBehavior', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      Center(
+        child: RepaintBoundary(
+          child: Container(
+            width: 200.0,
+            height: 700.0,
+            decoration: const BoxDecoration(
+              color: Color(0xff00ff00),
+            ),
+            child: Column(
+              children: const <Widget>[
+                Text('Hello\nLine 2\nLine 3',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(height: 5),
+                ),
+                Text('Hello\nLine 2\nLine 3',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(height: 5),
+                  textHeightBehavior: TextHeightBehavior(
+                    applyHeightToFirstAscent: false,
+                    applyHeightToLastDescent: false,
+                  ),
+                ),
+                Text('Hello',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(height: 5),
+                  textHeightBehavior: TextHeightBehavior(
+                    applyHeightToFirstAscent: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
+    );
+    await expectLater(
+      find.byType(Container),
+      matchesGoldenFile('text_golden.TextHeightBehavior.1.png'),
     );
   });
 }

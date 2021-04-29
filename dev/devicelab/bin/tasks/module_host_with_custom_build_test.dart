@@ -1,19 +1,17 @@
-// Copyright (c) 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_devicelab/framework/apk_utils.dart';
 import 'package:flutter_devicelab/framework/framework.dart';
+import 'package:flutter_devicelab/framework/task_result.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 import 'package:path/path.dart' as path;
 
 final String gradlew = Platform.isWindows ? 'gradlew.bat' : 'gradlew';
 final String gradlewExecutable = Platform.isWindows ? '.\\$gradlew' : './$gradlew';
-
-final bool useAndroidEmbeddingV2 = Platform.environment['ENABLE_ANDROID_EMBEDDING_V2'] == 'true';
 
 /// Tests that the Android app containing a Flutter module can be built when
 /// it has custom build types and flavors.
@@ -30,6 +28,11 @@ Future<void> main() async {
     print('\nUsing JAVA_HOME=$javaHome');
 
     section('Create Flutter module project');
+
+    await flutter(
+      'precache',
+      options: <String>['--android', '--no-ios'],
+    );
 
     final Directory tempDir = Directory.systemTemp.createTempSync('flutter_module_test.');
     final Directory projectDir = Directory(path.join(tempDir.path, 'hello'));
@@ -60,7 +63,7 @@ Future<void> main() async {
             flutterDirectory.path,
             'dev',
             'integration_tests',
-             useAndroidEmbeddingV2 ? 'module_host_with_custom_build_v2_embedding' : 'module_host_with_custom_build',
+            'module_host_with_custom_build_v2_embedding',
           ),
         ),
         hostAppDir,
@@ -74,7 +77,7 @@ Future<void> main() async {
         Directory(path.join(hostAppDir.path, 'gradle', 'wrapper')),
       );
 
-      final Function clean = () async {
+      Future<void> clean() async {
         section('Clean');
         await inDirectory(hostAppDir, () async {
           await exec(gradlewExecutable,
@@ -84,7 +87,7 @@ Future<void> main() async {
             },
           );
         });
-      };
+      }
 
       if (!Platform.isWindows) {
         section('Make $gradlewExecutable executable');
@@ -123,7 +126,7 @@ Future<void> main() async {
 
       section('Verify snapshots in app-demo-debug.apk');
 
-      checkItContains<String>(<String>[
+      checkCollectionContains<String>(<String>[
         ...flutterAssets,
         ...debugAssets,
       ], await getFilesInApk(demoDebugApk));
@@ -166,7 +169,7 @@ Future<void> main() async {
 
       section('Verify snapshots in app-demo-debug.apk');
 
-      checkItContains<String>(<String>[
+      checkCollectionContains<String>(<String>[
         ...flutterAssets,
         ...debugAssets,
       ], await getFilesInApk(demoDebugApk2));
@@ -201,7 +204,7 @@ Future<void> main() async {
 
       section('Verify snapshots in app-demo-staging.apk');
 
-      checkItContains<String>(<String>[
+      checkCollectionContains<String>(<String>[
         ...flutterAssets,
         ...debugAssets,
       ], await getFilesInApk(demoStagingApk));
@@ -236,9 +239,9 @@ Future<void> main() async {
         return TaskResult.failure('Failed to build app-demo-release-unsigned.apk');
       }
 
-      section('Verify AOT blobs in app-demo-release-unsigned.apk');
+      section('Verify AOT ELF in app-demo-release-unsigned.apk');
 
-      checkItContains<String>(<String>[
+      checkCollectionContains<String>(<String>[
         ...flutterAssets,
         'lib/arm64-v8a/libflutter.so',
         'lib/arm64-v8a/libapp.so',
@@ -274,9 +277,9 @@ Future<void> main() async {
         return TaskResult.failure('Failed to build app-demo-prod-unsigned.apk');
       }
 
-      section('Verify AOT blobs in app-demo-prod-unsigned.apk');
+      section('Verify AOT ELF in app-demo-prod-unsigned.apk');
 
-      checkItContains<String>(<String>[
+      checkCollectionContains<String>(<String>[
         ...flutterAssets,
         'lib/arm64-v8a/libapp.so',
         'lib/arm64-v8a/libflutter.so',

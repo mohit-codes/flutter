@@ -1,13 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AnimatedIconsTestApp extends StatelessWidget {
+  const AnimatedIconsTestApp({Key key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
@@ -20,7 +19,7 @@ class AnimatedIconsTestApp extends StatelessWidget {
 }
 
 class IconsList extends StatelessWidget {
-  const IconsList();
+  const IconsList({Key key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +30,7 @@ class IconsList extends StatelessWidget {
 }
 
 class IconSampleRow extends StatefulWidget {
-  const IconSampleRow(this.sample);
+  const IconSampleRow(this.sample, {Key key}) : super(key: key);
 
   final IconSample sample;
 
@@ -108,11 +107,4 @@ class IconSample {
   final String description;
 }
 
-void main() {
-  if (Platform.isMacOS) {
-    // TODO(gspencergoog): Update this when TargetPlatform includes macOS. https://github.com/flutter/flutter/issues/31366
-    // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  }
-  runApp(AnimatedIconsTestApp());
-}
+void main() => runApp(const AnimatedIconsTestApp());

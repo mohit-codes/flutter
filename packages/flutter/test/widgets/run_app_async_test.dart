@@ -1,15 +1,15 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:quiver/testing/async.dart';
 
 void main() {
   setUp(() {
     WidgetsFlutterBinding.ensureInitialized();
-    WidgetsBinding.instance.resetEpoch();
+    WidgetsBinding.instance!.resetEpoch();
   });
 
   test('WidgetBinding build rendering tree and warm up frame back to back', () {
@@ -23,9 +23,9 @@ void main() {
         ),
       );
       // Rendering tree is not built synchronously.
-      expect(WidgetsBinding.instance.renderViewElement, isNull);
+      expect(WidgetsBinding.instance!.renderViewElement, isNull);
       fakeAsync.flushTimers();
-      expect(WidgetsBinding.instance.renderViewElement, isNotNull);
+      expect(WidgetsBinding.instance!.renderViewElement, isNotNull);
     });
   });
 }

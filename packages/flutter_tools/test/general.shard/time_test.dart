@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,9 +27,9 @@ void main() {
       final String formattedTime = formatDateTime(time);
       // If a date time string has a timezone offset, DateTime.tryParse()
       // converts the parsed time to UTC.
-      final DateTime parsedTime = DateTime.tryParse(formattedTime);
+      final DateTime? parsedTime = DateTime.tryParse(formattedTime);
       expect(parsedTime, isNotNull);
-      expect(parsedTime.isUtc, isTrue);
+      expect(parsedTime!.isUtc, isTrue);
       // Convert the parsed time (which should be utc) to the local timezone and
       // compare against the original time which is in the local timezone. They
       // should be the same.

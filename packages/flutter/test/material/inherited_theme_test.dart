@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,7 +22,7 @@ void main() {
       },
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -38,7 +38,7 @@ void main() {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          RaisedButton(
+                          ElevatedButton(
                             child: const Text('push unwrapped'),
                             onPressed: () {
                               Navigator.of(context).push<void>(
@@ -49,7 +49,7 @@ void main() {
                               );
                             },
                           ),
-                          RaisedButton(
+                          ElevatedButton(
                             child: const Text('push wrapped'),
                             onPressed: () {
                               Navigator.of(context).push<void>(
@@ -73,8 +73,7 @@ void main() {
     }
 
     Color containerColor() {
-      final BoxDecoration decoration = tester.widget<Container>(find.byKey(primaryContainerKey)).decoration;
-      return decoration.color;
+      return tester.widget<Container>(find.byKey(primaryContainerKey)).color!;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -97,7 +96,6 @@ void main() {
   testWidgets('PopupMenuTheme.wrap()', (WidgetTester tester) async {
     const double menuFontSize = 24;
     const Color menuTextColor = Color(0xFF0000FF);
-    bool captureInheritedThemes = true;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -113,7 +111,6 @@ void main() {
                 // The appearance of the menu items' text is defined by the
                 // PopupMenuTheme defined above. Popup menus use
                 // InheritedTheme.captureAll() by default.
-                captureInheritedThemes: captureInheritedThemes,
                 child: const Text('show popupmenu'),
                 onSelected: (int result) { },
                 itemBuilder: (BuildContext context) {
@@ -132,7 +129,7 @@ void main() {
     TextStyle itemTextStyle(String text) {
       return tester.widget<RichText>(
         find.descendant(of: find.text(text), matching: find.byType(RichText)),
-      ).text.style;
+      ).text.style!;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -147,17 +144,6 @@ void main() {
     // Dismiss the menu
     await tester.tap(find.text('One'));
     await tester.pumpAndSettle(); // menu route animation
-
-    // Defeat the default support for capturing the PopupMenuTheme.
-    captureInheritedThemes = false;
-    await tester.pumpWidget(buildFrame());
-
-    await tester.tap(find.text('show popupmenu'));
-    await tester.pumpAndSettle(); // menu route animation
-    expect(itemTextStyle('One').fontSize, isNot(menuFontSize));
-    expect(itemTextStyle('One').color,  isNot(menuTextColor));
-    expect(itemTextStyle('Two').fontSize, isNot(menuFontSize));
-    expect(itemTextStyle('Two').color,  isNot(menuTextColor));
   });
 
   testWidgets('BannerTheme.wrap()', (WidgetTester tester) async {
@@ -168,14 +154,14 @@ void main() {
     final Widget banner = MaterialBanner(
       content: const Text('hello'),
       actions: <Widget>[
-        FlatButton(
+        TextButton(
           child: const Text('action'),
           onPressed: () { },
         ),
       ],
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -192,7 +178,7 @@ void main() {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push unwrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -203,7 +189,7 @@ void main() {
                           );
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push wrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -225,10 +211,9 @@ void main() {
     }
 
     Color bannerColor() {
-      final BoxDecoration decoration = tester.widget<Container>(
+      return tester.widget<Container>(
         find.descendant(of: find.byType(MaterialBanner), matching: find.byType(Container)).first,
-      ).decoration;
-      return decoration.color;
+      ).color!;
     }
 
     TextStyle getTextStyle(String text) {
@@ -237,7 +222,7 @@ void main() {
           of: find.text(text),
           matching: find.byType(RichText),
         ),
-      ).text.style;
+      ).text.style!;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -265,7 +250,7 @@ void main() {
     const double dividerThickness = 7;
     const Widget divider = Center(child: Divider());
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -283,7 +268,7 @@ void main() {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push unwrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -294,7 +279,7 @@ void main() {
                           );
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push wrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -318,8 +303,8 @@ void main() {
     BorderSide dividerBorder() {
       final BoxDecoration decoration = tester.widget<Container>(
         find.descendant(of: find.byType(Divider), matching: find.byType(Container)).first,
-      ).decoration;
-      return decoration.border.bottom;
+      ).decoration! as BoxDecoration;
+      return decoration.border!.bottom;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -371,7 +356,7 @@ void main() {
       ),
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -387,7 +372,7 @@ void main() {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push unwrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -398,7 +383,7 @@ void main() {
                           );
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push wrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -422,7 +407,7 @@ void main() {
     TextStyle getTextStyle(String text) {
       return tester.widget<RichText>(
         find.descendant(of: find.text(text), matching: find.byType(RichText)),
-      ).text.style;
+      ).text.style!;
     }
 
     TextStyle getIconStyle(Key key) {
@@ -431,7 +416,7 @@ void main() {
           of: find.byKey(key),
           matching: find.byType(RichText),
         ),
-      ).text.style;
+      ).text.style!;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -469,7 +454,7 @@ void main() {
       ),
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -487,7 +472,7 @@ void main() {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push unwrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -498,7 +483,7 @@ void main() {
                           );
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push wrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -525,7 +510,7 @@ void main() {
     await tester.tap(find.text('push wrapped'));
     await tester.pumpAndSettle(); // route animation
     RenderBox sliderBox = tester.firstRenderObject<RenderBox>(find.byType(Slider));
-    expect(sliderBox, paints..rect(color: activeTrackColor)..rect(color: inactiveTrackColor));
+    expect(sliderBox, paints..rrect(color: activeTrackColor)..rrect(color: inactiveTrackColor));
     expect(sliderBox, paints..circle(color: thumbColor));
 
     Navigator.of(navigatorContext).pop();
@@ -534,7 +519,7 @@ void main() {
     await tester.tap(find.text('push unwrapped'));
     await tester.pumpAndSettle(); // route animation
     sliderBox = tester.firstRenderObject<RenderBox>(find.byType(Slider));
-    expect(sliderBox, isNot(paints..rect(color: activeTrackColor)..rect(color: inactiveTrackColor)));
+    expect(sliderBox, isNot(paints..rrect(color: activeTrackColor)..rrect(color: inactiveTrackColor)));
     expect(sliderBox, isNot(paints..circle(color: thumbColor)));
   });
 
@@ -555,7 +540,7 @@ void main() {
       ),
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -572,7 +557,7 @@ void main() {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push unwrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -583,7 +568,7 @@ void main() {
                           );
                         },
                       ),
-                      RaisedButton(
+                      ElevatedButton(
                         child: const Text('push wrapped'),
                         onPressed: () {
                           Navigator.of(context).push<void>(
@@ -607,7 +592,7 @@ void main() {
     Color getTextColor(String text) {
       return tester.widget<RichText>(
         find.descendant(of: find.text(text), matching: find.byType(RichText)),
-      ).text.style.color;
+      ).text.style!.color!;
     }
 
     await tester.pumpWidget(buildFrame());
@@ -644,7 +629,7 @@ void main() {
       ),
     );
 
-    BuildContext navigatorContext;
+    late BuildContext navigatorContext;
 
     Widget buildFrame() {
       return MaterialApp(
@@ -699,7 +684,7 @@ void main() {
           of: find.widgetWithText(RawMaterialButton, text),
           matching: find.byType(Material),
         ),
-      ).color;
+      ).color!;
     }
 
     await tester.pumpWidget(buildFrame());

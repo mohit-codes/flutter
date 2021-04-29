@@ -1,14 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class TestStatefulWidget extends StatefulWidget {
-  const TestStatefulWidget({ Key key }) : super(key: key);
+  const TestStatefulWidget({ Key? key }) : super(key: key);
 
   @override
   TestStatefulWidgetState createState() => TestStatefulWidgetState();
@@ -20,7 +19,7 @@ class TestStatefulWidgetState extends State<TestStatefulWidget> {
 }
 
 class TestChildWidget extends StatefulWidget {
-  const TestChildWidget({ Key key }) : super(key: key);
+  const TestChildWidget({ Key? key }) : super(key: key);
 
   @override
   TestChildState createState() => TestChildState();
@@ -92,7 +91,7 @@ void main() {
       children: const <TableRow>[
         TableRow(
           decoration: BoxDecoration(
-              color: Colors.yellow
+              color: Colors.yellow,
           ),
           children: <Widget>[Placeholder()],
         ),
@@ -112,7 +111,7 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Center(
           child: Center(
-            child: table
+            child: table,
           ),
         ),
       ),
@@ -875,7 +874,7 @@ void main() {
       ),
     );
     await tester.pumpWidget(table);
-    final RenderObjectElement element = key0.currentContext;
+    final RenderObjectElement element = key0.currentContext! as RenderObjectElement;
     expect(element, hasAGoodToStringDeep);
     expect(
       element.toStringDeep(minLevel: DiagnosticLevel.info),
@@ -898,7 +897,7 @@ void main() {
         '├Text("H")\n'
         '│└RichText(softWrap: wrapping at box width, maxLines: unlimited, text: "H", dependencies: [Directionality], renderObject: RenderParagraph#00000 relayoutBoundary=up1)\n'
         '└Text("III")\n'
-        ' └RichText(softWrap: wrapping at box width, maxLines: unlimited, text: "III", dependencies: [Directionality], renderObject: RenderParagraph#00000 relayoutBoundary=up1)\n'
+        ' └RichText(softWrap: wrapping at box width, maxLines: unlimited, text: "III", dependencies: [Directionality], renderObject: RenderParagraph#00000 relayoutBoundary=up1)\n',
       ),
     );
   });
@@ -929,6 +928,77 @@ void main() {
       expect(find.text('CRASHHH'), findsOneWidget);
     },
   );
+
+  testWidgets('Table widget - Default textBaseline is null', (WidgetTester tester) async {
+    expect(
+      () => Table(defaultVerticalAlignment: TableCellVerticalAlignment.baseline),
+      throwsA(
+        isAssertionError
+          .having((AssertionError error) => error.message, 'exception message', contains('baseline')),
+      ),
+    );
+  });
+
+  testWidgets(
+    'Table widget requires all TableRows to have non-null children',
+    (WidgetTester tester) async {
+      FlutterError? error;
+      try {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Table(
+              children: const <TableRow>[
+                TableRow(children: <Widget>[Text('Some Text')]),
+                TableRow(),
+              ],
+            ),
+          ),
+        );
+      } on FlutterError catch (e) {
+        error = e;
+      } finally {
+        expect(error, isNotNull);
+        expect(error!.toStringDeep(), contains('The children property of TableRow must not be null.'));
+      }
+    },
+  );
+
+  testWidgets('Can replace child with a different RenderObject type', (WidgetTester tester) async {
+    // Regression test for https://github.com/flutter/flutter/issues/69395.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Table(children: const <TableRow>[
+          TableRow(children: <Widget>[
+            TestChildWidget(),
+            TestChildWidget(),
+            TestChildWidget(),
+          ]),
+          TableRow(children: <Widget>[
+            TestChildWidget(),
+            TestChildWidget(),
+            TestChildWidget(),
+          ]),
+        ]),
+      ),
+    );
+    final RenderTable table = tester.renderObject(find.byType(Table));
+
+    expect(find.text('CRASHHH'), findsNothing);
+    expect(find.byType(SizedBox), findsNWidgets(3 * 2));
+    final Type toBeReplaced = table.column(2).last.runtimeType;
+
+    final TestChildState state = tester.state(find.byType(TestChildWidget).last);
+    state.toggleMe();
+    await tester.pump();
+
+    expect(find.byType(SizedBox), findsNWidgets(5));
+    expect(find.text('CRASHHH'), findsOneWidget);
+
+    // The RenderObject got replaced by a different type.
+    expect(table.column(2).last.runtimeType, isNot(toBeReplaced));
+  });
 
   // TODO(ianh): Test handling of TableCell object
 }

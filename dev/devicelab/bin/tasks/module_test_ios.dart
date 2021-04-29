@@ -1,12 +1,15 @@
-// Copyright (c) 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_devicelab/framework/framework.dart';
+import 'package:flutter_devicelab/framework/host_agent.dart';
 import 'package:flutter_devicelab/framework/ios.dart';
+import 'package:flutter_devicelab/framework/task_result.dart';
 import 'package:flutter_devicelab/framework/utils.dart';
 import 'package:path/path.dart' as path;
 
@@ -14,6 +17,7 @@ import 'package:path/path.dart' as path;
 /// adding Flutter to an existing iOS app.
 Future<void> main() async {
   await task(() async {
+    String simulatorDeviceId;
     section('Create Flutter module project');
 
     final Directory tempDir = Directory.systemTemp.createTempSync('flutter_module_test.');
@@ -30,7 +34,18 @@ Future<void> main() async {
           ],
         );
       });
-      await prepareProvisioningCertificates(projectDir.path);
+
+      // Copy test dart files to new module app.
+      final Directory flutterModuleLibSource = Directory(path.join(flutterDirectory.path, 'dev', 'integration_tests', 'ios_host_app', 'flutterapp', 'lib'));
+      final Directory flutterModuleLibDestination = Directory(path.join(projectDir.path, 'lib'));
+
+      // These test files don't have a .dart prefix so the analyzer will ignore them. They aren't in a
+      // package and don't work on their own outside of the test module just created.
+      final File main = File(path.join(flutterModuleLibSource.path, 'main'));
+      main.copySync(path.join(flutterModuleLibDestination.path, 'main.dart'));
+
+      final File marquee = File(path.join(flutterModuleLibSource.path, 'marquee'));
+      marquee.copySync(path.join(flutterModuleLibDestination.path, 'marquee.dart'));
 
       section('Build ephemeral host app in release mode without CocoaPods');
 
@@ -41,7 +56,7 @@ Future<void> main() async {
         );
       });
 
-      final Directory ephemeralReleaseHostApp = Directory(path.join(
+      final Directory ephemeralIOSHostApp = Directory(path.join(
         projectDir.path,
         'build',
         'ios',
@@ -49,20 +64,13 @@ Future<void> main() async {
         'Runner.app',
       ));
 
-      if (!exists(ephemeralReleaseHostApp)) {
+      if (!exists(ephemeralIOSHostApp)) {
         return TaskResult.failure('Failed to build ephemeral host .app');
       }
 
-      if (!await _isAppAotBuild(ephemeralReleaseHostApp)) {
+      if (!await _isAppAotBuild(ephemeralIOSHostApp)) {
         return TaskResult.failure(
-          'Ephemeral host app ${ephemeralReleaseHostApp.path} was not a release build as expected'
-        );
-      }
-
-      if (await _hasDebugSymbols(ephemeralReleaseHostApp)) {
-        return TaskResult.failure(
-          "Ephemeral host app ${ephemeralReleaseHostApp.path}'s App.framework's "
-          "debug symbols weren't stripped in release mode"
+          'Ephemeral host app ${ephemeralIOSHostApp.path} was not a release build as expected'
         );
       }
 
@@ -81,27 +89,13 @@ Future<void> main() async {
         );
       });
 
-      final Directory ephemeralProfileHostApp = Directory(path.join(
-        projectDir.path,
-        'build',
-        'ios',
-        'iphoneos',
-        'Runner.app',
-      ));
-
-      if (!exists(ephemeralProfileHostApp)) {
+      if (!exists(ephemeralIOSHostApp)) {
         return TaskResult.failure('Failed to build ephemeral host .app');
       }
 
-      if (!await _isAppAotBuild(ephemeralProfileHostApp)) {
+      if (!await _isAppAotBuild(ephemeralIOSHostApp)) {
         return TaskResult.failure(
-          'Ephemeral host app ${ephemeralProfileHostApp.path} was not a profile build as expected'
-        );
-      }
-
-      if (!await _hasDebugSymbols(ephemeralProfileHostApp)) {
-        return TaskResult.failure(
-          "Ephemeral host app ${ephemeralProfileHostApp.path}'s App.framework does not contain debug symbols"
+          'Ephemeral host app ${ephemeralIOSHostApp.path} was not a profile build as expected'
         );
       }
 
@@ -120,7 +114,7 @@ Future<void> main() async {
         );
       });
 
-      final Directory ephemeralDebugHostApp = Directory(path.join(
+      final Directory ephemeralSimulatorHostApp = Directory(path.join(
         projectDir.path,
         'build',
         'ios',
@@ -128,19 +122,19 @@ Future<void> main() async {
         'Runner.app',
       ));
 
-      if (!exists(ephemeralDebugHostApp)) {
+      if (!exists(ephemeralSimulatorHostApp)) {
         return TaskResult.failure('Failed to build ephemeral host .app');
       }
 
       if (!exists(File(path.join(
-        ephemeralDebugHostApp.path,
+        ephemeralSimulatorHostApp.path,
         'Frameworks',
         'App.framework',
         'flutter_assets',
         'isolate_snapshot_data',
       )))) {
         return TaskResult.failure(
-          'Ephemeral host app ${ephemeralDebugHostApp.path} was not a debug build as expected'
+          'Ephemeral host app ${ephemeralSimulatorHostApp.path} was not a debug build as expected'
         );
       }
 
@@ -156,7 +150,8 @@ Future<void> main() async {
       String content = await pubspec.readAsString();
       content = content.replaceFirst(
         '\ndependencies:\n',
-        '\ndependencies:\n  device_info:\n  google_maps_flutter:\n', // One dynamic and one static framework.
+        // One dynamic framework, one static framework, and one that does not support iOS.
+        '\ndependencies:\n  device_info: 0.4.2+4\n  google_sign_in: 4.5.1\n  android_alarm_manager: 0.4.5+11\n',
       );
       await pubspec.writeAsString(content, flush: true);
       await inDirectory(projectDir, () async {
@@ -171,17 +166,11 @@ Future<void> main() async {
       await inDirectory(projectDir, () async {
         await flutter(
           'build',
-          options: <String>['ios', '--no-codesign'],
+          options: <String>['ios', '--no-codesign', '-v'],
         );
       });
 
-      final bool ephemeralHostAppWithCocoaPodsBuilt = exists(Directory(path.join(
-        projectDir.path,
-        'build',
-        'ios',
-        'iphoneos',
-        'Runner.app',
-      )));
+      final bool ephemeralHostAppWithCocoaPodsBuilt = exists(ephemeralIOSHostApp);
 
       if (!ephemeralHostAppWithCocoaPodsBuilt) {
         return TaskResult.failure('Failed to build ephemeral host .app with CocoaPods');
@@ -189,48 +178,32 @@ Future<void> main() async {
 
       final File podfileLockFile = File(path.join(projectDir.path, '.ios', 'Podfile.lock'));
       final String podfileLockOutput = podfileLockFile.readAsStringSync();
-      if (!podfileLockOutput.contains(':path: Flutter/engine')
+      if (!podfileLockOutput.contains(':path: Flutter')
         || !podfileLockOutput.contains(':path: Flutter/FlutterPluginRegistrant')
-        || !podfileLockOutput.contains(':path: Flutter/.symlinks/device_info/ios')
-        || !podfileLockOutput.contains(':path: Flutter/.symlinks/google_maps_flutter/ios')) {
+        || !podfileLockOutput.contains(':path: ".symlinks/plugins/device_info/ios"')
+        || !podfileLockOutput.contains(':path: ".symlinks/plugins/google_sign_in/ios"')
+        || podfileLockOutput.contains('android_alarm_manager')) {
+        print(podfileLockOutput);
         return TaskResult.failure('Building ephemeral host app Podfile.lock does not contain expected pods');
       }
 
-      section('Clean build');
+      checkFileExists(path.join(ephemeralIOSHostApp.path, 'Frameworks', 'device_info.framework', 'device_info'));
+
+      // Static, no embedded framework.
+      checkDirectoryNotExists(path.join(ephemeralIOSHostApp.path, 'Frameworks', 'google_sign_in.framework'));
+
+      // Android-only, no embedded framework.
+      checkDirectoryNotExists(path.join(ephemeralIOSHostApp.path, 'Frameworks', 'android_alarm_manager.framework'));
+
+      section('Clean and pub get module');
 
       await inDirectory(projectDir, () async {
         await flutter('clean');
       });
 
-      section('Make iOS host app editable');
-
       await inDirectory(projectDir, () async {
-        await flutter(
-          'make-host-app-editable',
-          options: <String>['ios'],
-        );
+        await flutter('pub', options: <String>['get']);
       });
-
-      section('Build editable host app');
-
-      await inDirectory(projectDir, () async {
-        await flutter(
-          'build',
-          options: <String>['ios', '--no-codesign'],
-        );
-      });
-
-      final bool editableHostAppBuilt = exists(Directory(path.join(
-        projectDir.path,
-        'build',
-        'ios',
-        'iphoneos',
-        'Runner.app',
-      )));
-
-      if (!editableHostAppBuilt) {
-        return TaskResult.failure('Failed to build editable host .app');
-      }
 
       section('Add to existing iOS Objective-C app');
 
@@ -243,8 +216,28 @@ Future<void> main() async {
 
       final File objectiveCAnalyticsOutputFile = File(path.join(tempDir.path, 'analytics-objc.log'));
       final Directory objectiveCBuildDirectory = Directory(path.join(tempDir.path, 'build-objc'));
+
+      section('Build iOS Objective-C host app');
       await inDirectory(objectiveCHostApp, () async {
-        await exec('pod', <String>['install']);
+        await exec(
+          'pod',
+          <String>['install'],
+          environment: <String, String>{
+            'LANG': 'en_US.UTF-8',
+          },
+        );
+
+        final File hostPodfileLockFile = File(path.join(objectiveCHostApp.path, 'Podfile.lock'));
+        final String hostPodfileLockOutput = hostPodfileLockFile.readAsStringSync();
+        if (!hostPodfileLockOutput.contains(':path: "../hello/.ios/Flutter/engine"')
+            || !hostPodfileLockOutput.contains(':path: "../hello/.ios/Flutter/FlutterPluginRegistrant"')
+            || !hostPodfileLockOutput.contains(':path: "../hello/.ios/.symlinks/plugins/device_info/ios"')
+            || !hostPodfileLockOutput.contains(':path: "../hello/.ios/.symlinks/plugins/google_sign_in/ios"')
+            || hostPodfileLockOutput.contains('android_alarm_manager')) {
+          print(hostPodfileLockOutput);
+          throw TaskResult.failure('Building host app Podfile.lock does not contain expected pods');
+        }
+
         await exec(
           'xcodebuild',
           <String>[
@@ -276,20 +269,63 @@ Future<void> main() async {
         return TaskResult.failure('Failed to build existing Objective-C app .app');
       }
 
+      checkFileExists(path.join(
+        objectiveCBuildDirectory.path,
+        'Host.app',
+        'Frameworks',
+        'Flutter.framework',
+        'Flutter',
+      ));
+
+      checkFileExists(path.join(
+        objectiveCBuildDirectory.path,
+        'Host.app',
+        'Frameworks',
+        'App.framework',
+        'flutter_assets',
+        'isolate_snapshot_data',
+      ));
+
+      section('Check the NOTICE file is correct');
+
+      final String licenseFilePath = path.join(
+        objectiveCBuildDirectory.path,
+        'Host.app',
+        'Frameworks',
+        'App.framework',
+        'flutter_assets',
+        'NOTICES.Z',
+      );
+      checkFileExists(licenseFilePath);
+
+      await inDirectory(objectiveCBuildDirectory, () async {
+        final Uint8List licenseData = File(licenseFilePath).readAsBytesSync();
+        final String licenseString = utf8.decode(gzip.decode(licenseData));
+        if (!licenseString.contains('skia') || !licenseString.contains('Flutter Authors')) {
+          return TaskResult.failure('License content missing');
+        }
+      });
+
+      section('Check that the host build sends the correct analytics');
+
       final String objectiveCAnalyticsOutput = objectiveCAnalyticsOutputFile.readAsStringSync();
       if (!objectiveCAnalyticsOutput.contains('cd24: ios')
           || !objectiveCAnalyticsOutput.contains('cd25: true')
-          || !objectiveCAnalyticsOutput.contains('viewName: build/bundle')) {
+          || !objectiveCAnalyticsOutput.contains('viewName: assemble')) {
         return TaskResult.failure(
-          'Building outer Objective-C app produced the following analytics: "$objectiveCAnalyticsOutput"'
-          'but not the expected strings: "cd24: ios", "cd25: true", "viewName: build/bundle"'
+          'Building outer Objective-C app produced the following analytics: "$objectiveCAnalyticsOutput" '
+          'but not the expected strings: "cd24: ios", "cd25: true", "viewName: assemble"'
         );
       }
 
-      section('Fail building existing Objective-C iOS app if flutter script fails');
-      int xcodebuildExitCode = 0;
-      await inDirectory(objectiveCHostApp, () async {
-        xcodebuildExitCode = await exec(
+      section('Run platform unit tests');
+
+      final String resultBundleTemp = Directory.systemTemp.createTempSync('flutter_module_test_ios_xcresult.').path;
+      await testWithNewIOSSimulator('TestAdd2AppSim', (String deviceId) async {
+        simulatorDeviceId = deviceId;
+        final String resultBundlePath = path.join(resultBundleTemp, 'result');
+
+        final int testResultExit = await exec(
           'xcodebuild',
           <String>[
             '-workspace',
@@ -298,7 +334,54 @@ Future<void> main() async {
             'Host',
             '-configuration',
             'Debug',
-            'ARCHS=i386', // i386 is not supported in Debug mode.
+            '-destination',
+            'id=$deviceId',
+            '-resultBundlePath',
+            resultBundlePath,
+            'test',
+            'CODE_SIGNING_ALLOWED=NO',
+            'CODE_SIGNING_REQUIRED=NO',
+            'CODE_SIGN_IDENTITY=-',
+            'EXPANDED_CODE_SIGN_IDENTITY=-',
+            'COMPILER_INDEX_STORE_ENABLE=NO',
+          ],
+          workingDirectory: objectiveCHostApp.path,
+          canFail: true,
+        );
+
+        if (testResultExit != 0) {
+          // Zip the test results to the artifacts directory for upload.
+          await inDirectory(resultBundleTemp, () {
+            final String zipPath = path.join(hostAgent.dumpDirectory.path,
+                'module_test_ios-objc-${DateTime.now().toLocal().toIso8601String()}.zip');
+            return exec(
+              'zip',
+              <String>[
+                '-r',
+                '-9',
+                zipPath,
+                'result.xcresult',
+              ],
+              canFail: true, // Best effort to get the logs.
+            );
+          });
+
+          throw TaskResult.failure('Platform unit tests failed');
+        }
+      });
+
+      section('Fail building existing Objective-C iOS app if flutter script fails');
+      final String xcodebuildOutput = await inDirectory<String>(objectiveCHostApp, () =>
+        eval(
+          'xcodebuild',
+          <String>[
+            '-workspace',
+            'Host.xcworkspace',
+            '-scheme',
+            'Host',
+            '-configuration',
+            'Debug',
+            'FLUTTER_ENGINE=bogus', // Force a Flutter error.
             'CODE_SIGNING_ALLOWED=NO',
             'CODE_SIGNING_REQUIRED=NO',
             'CODE_SIGN_IDENTITY=-',
@@ -307,10 +390,12 @@ Future<void> main() async {
             'COMPILER_INDEX_STORE_ENABLE=NO',
           ],
           canFail: true,
-        );
-      });
+        )
+      );
 
-      if (xcodebuildExitCode != 65) { // 65 returned on PhaseScriptExecution failure.
+      if (!xcodebuildOutput.contains('flutter --verbose --local-engine-src-path=bogus assemble') || // Verbose output
+          !xcodebuildOutput.contains('Unable to detect a Flutter engine build directory in bogus') ||
+          !xcodebuildOutput.contains('Command PhaseScriptExecution failed with a nonzero exit code')) {
         return TaskResult.failure('Host Objective-C app build succeeded though flutter script failed');
       }
 
@@ -327,7 +412,13 @@ Future<void> main() async {
       final Directory swiftBuildDirectory = Directory(path.join(tempDir.path, 'build-swift'));
 
       await inDirectory(swiftHostApp, () async {
-        await exec('pod', <String>['install']);
+        await exec(
+          'pod',
+          <String>['install'],
+          environment: <String, String>{
+            'LANG': 'en_US.UTF-8',
+          },
+        );
         await exec(
           'xcodebuild',
           <String>[
@@ -362,10 +453,10 @@ Future<void> main() async {
       final String swiftAnalyticsOutput = swiftAnalyticsOutputFile.readAsStringSync();
       if (!swiftAnalyticsOutput.contains('cd24: ios')
           || !swiftAnalyticsOutput.contains('cd25: true')
-          || !swiftAnalyticsOutput.contains('viewName: build/bundle')) {
+          || !swiftAnalyticsOutput.contains('viewName: assemble')) {
         return TaskResult.failure(
-          'Building outer Swift app produced the following analytics: "$swiftAnalyticsOutput"'
-          'but not the expected strings: "cd24: ios", "cd25: true", "viewName: build/bundle"'
+          'Building outer Swift app produced the following analytics: "$swiftAnalyticsOutput" '
+          'but not the expected strings: "cd24: ios", "cd25: true", "viewName: assemble"'
         );
       }
 
@@ -373,6 +464,7 @@ Future<void> main() async {
     } catch (e) {
       return TaskResult.failure(e.toString());
     } finally {
+      removeIOSimulator(simulatorDeviceId);
       rmTree(tempDir);
     }
   });
@@ -395,27 +487,4 @@ Future<bool> _isAppAotBuild(Directory app) async {
   );
 
   return symbolTable.contains('kDartIsolateSnapshotInstructions');
-}
-
-Future<bool> _hasDebugSymbols(Directory app) async {
-  final String binary = path.join(
-    app.path,
-    'Frameworks',
-    'App.framework',
-    'App',
-  );
-
-  final String symbolTable = await eval(
-    'dsymutil',
-    <String> [
-      '--dump-debug-map',
-      binary,
-    ],
-    // The output is huge.
-    printStdout: false,
-  );
-
-  // Search for some random Flutter framework Dart function which should always
-  // be in App.framework.
-  return symbolTable.contains('BuildOwner_reassemble');
 }

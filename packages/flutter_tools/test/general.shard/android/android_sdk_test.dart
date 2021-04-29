@@ -1,29 +1,30 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'package:file/memory.dart';
 import 'package:flutter_tools/src/android/android_sdk.dart';
-import 'package:flutter_tools/src/base/file_system.dart';
-import 'package:flutter_tools/src/base/io.dart' show ProcessResult;
-import 'package:flutter_tools/src/base/platform.dart';
 import 'package:flutter_tools/src/base/config.dart';
-import 'package:mockito/mockito.dart';
-import 'package:process/process.dart';
+import 'package:flutter_tools/src/base/file_system.dart';
+import 'package:flutter_tools/src/base/platform.dart';
+import 'package:meta/meta.dart';
 
 import '../../src/common.dart';
 import '../../src/context.dart';
 import '../../src/mocks.dart';
 
-class MockProcessManager extends Mock implements ProcessManager {}
 
 void main() {
-  MemoryFileSystem fs;
-  MockProcessManager processManager;
+  MemoryFileSystem fileSystem;
+  FakeProcessManager processManager;
+  Config config;
 
   setUp(() {
-    fs = MemoryFileSystem();
-    processManager = MockProcessManager();
+    fileSystem = MemoryFileSystem.test();
+    processManager = FakeProcessManager.empty();
+    config = Config.test();
   });
 
   group('android_sdk AndroidSdk', () {
@@ -38,60 +39,166 @@ void main() {
 
     testUsingContext('parse sdk', () {
       sdkDir = MockAndroidSdk.createSdkDirectory();
-      Config.instance.setValue('android-sdk', sdkDir.path);
+      config.setValue('android-sdk', sdkDir.path);
 
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
       expect(sdk.latestVersion, isNotNull);
       expect(sdk.latestVersion.sdkLevel, 23);
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
+      Config: () => config,
     });
 
     testUsingContext('parse sdk N', () {
       sdkDir = MockAndroidSdk.createSdkDirectory(withAndroidN: true);
-      Config.instance.setValue('android-sdk', sdkDir.path);
+      config.setValue('android-sdk', sdkDir.path);
 
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
       expect(sdk.latestVersion, isNotNull);
       expect(sdk.latestVersion.sdkLevel, 24);
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
+      Config: () => config,
     });
 
-    testUsingContext('returns sdkmanager path', () {
+    testUsingContext('returns sdkmanager path under cmdline tools on Linux/macOS', () {
       sdkDir = MockAndroidSdk.createSdkDirectory();
-      Config.instance.setValue('android-sdk', sdkDir.path);
+      config.setValue('android-sdk', sdkDir.path);
 
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-      expect(sdk.sdkManagerPath, fs.path.join(sdk.directory, 'tools', 'bin', 'sdkmanager'));
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'sdkmanager')
+      ).createSync(recursive: true);
+
+      expect(sdk.sdkManagerPath, fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'sdkmanager'));
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
+      Config: () => config,
+    });
+
+    testUsingContext('returns sdkmanager path under cmdline tools (highest version) on Linux/macOS', () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      final List<String> versions = <String>['3.0', '2.1', '1.0'];
+      for (final String version in versions) {
+        fileSystem.file(
+          fileSystem.path.join(sdk.directory.path, 'cmdline-tools', version, 'bin', 'sdkmanager')
+        ).createSync(recursive: true);
+      }
+
+      expect(sdk.sdkManagerPath, fileSystem.path.join(sdk.directory.path, 'cmdline-tools', '3.0', 'bin', 'sdkmanager'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
+      Config: () => config,
+    });
+
+    testUsingContext('Caches adb location after first access', () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      final File adbFile = fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'adb.exe')
+      )..createSync(recursive: true);
+
+      expect(sdk.adbPath,  fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'adb.exe'));
+
+      adbFile.deleteSync(recursive: true);
+
+      expect(sdk.adbPath,  fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'adb.exe'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'windows'),
+      Config: () => config,
+    });
+
+    testUsingContext('returns sdkmanager.bat path under cmdline tools for windows', () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'sdkmanager.bat')
+      ).createSync(recursive: true);
+
+      expect(sdk.sdkManagerPath,
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'sdkmanager.bat'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'windows'),
+      Config: () => config,
+    });
+
+    testUsingContext("returns sdkmanager path under tools if cmdline doesn't exist", () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+
+      expect(sdk.sdkManagerPath, fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'sdkmanager'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
+    });
+
+    testUsingContext("returns sdkmanager path under tools if cmdline doesn't exist on windows", () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+
+      expect(sdk.sdkManagerPath, fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'sdkmanager.bat'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'windows'),
     });
 
     testUsingContext('returns sdkmanager version', () {
       sdkDir = MockAndroidSdk.createSdkDirectory();
-      Config.instance.setValue('android-sdk', sdkDir.path);
-
+      config.setValue('android-sdk', sdkDir.path);
+      processManager.addCommand(
+        const FakeCommand(
+            command: <String>[
+            '/.tmp_rand0/flutter_mock_android_sdk.rand0/tools/bin/sdkmanager',
+            '--version',
+          ],
+          stdout: '26.1.1\n',
+        ),
+      );
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-      when(processManager.canRun(sdk.sdkManagerPath)).thenReturn(true);
-      when(processManager.runSync(<String>[sdk.sdkManagerPath, '--version'],
-          environment: argThat(isNotNull,  named: 'environment')))
-          .thenReturn(ProcessResult(1, 0, '26.1.1\n', ''));
+
       expect(sdk.sdkManagerVersion, '26.1.1');
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'linux', environment: <String, String>{}),
     });
 
     testUsingContext('returns validate sdk is well formed', () {
-      sdkDir = MockBrokenAndroidSdk.createSdkDirectory();
-      Config.instance.setValue('android-sdk', sdkDir.path);
-
+      sdkDir = createSdkDirectory(
+        fileSystem: fileSystem,
+      );
+      processManager.addCommand(const FakeCommand(command: <String>[
+        '/.tmp_rand0/flutter_mock_android_sdk.rand0/tools/bin/sdkmanager',
+        '--version',
+      ]));
+      config.setValue('android-sdk', sdkDir.path);
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-      when(processManager.canRun(sdk.adbPath)).thenReturn(true);
 
       final List<String> validationIssues = sdk.validateSdkWellFormed();
       expect(validationIssues.first, 'No valid Android SDK platforms found in'
@@ -99,157 +206,145 @@ void main() {
         '  - android-22\n'
         '  - android-23');
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
     });
 
     testUsingContext('does not throw on sdkmanager version check failure', () {
       sdkDir = MockAndroidSdk.createSdkDirectory();
-      Config.instance.setValue('android-sdk', sdkDir.path);
+      config.setValue('android-sdk', sdkDir.path);
+      processManager.addCommand(
+        const FakeCommand(
+          command: <String>[
+            '/.tmp_rand0/flutter_mock_android_sdk.rand0/tools/bin/sdkmanager',
+            '--version',
+          ],
+          stdout: '\n',
+          stderr: 'Mystery error',
+          exitCode: 1,
+        ),
+      );
 
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-      when(processManager.canRun(sdk.sdkManagerPath)).thenReturn(true);
-      when(processManager.runSync(<String>[sdk.sdkManagerPath, '--version'],
-          environment: argThat(isNotNull,  named: 'environment')))
-          .thenReturn(ProcessResult(1, 1, '26.1.1\n', 'Mystery error'));
+
       expect(sdk.sdkManagerVersion, isNull);
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'linux', environment: <String, String>{}),
     });
 
     testUsingContext('throws on sdkmanager version check if sdkmanager not found', () {
       sdkDir = MockAndroidSdk.createSdkDirectory(withSdkManager: false);
-      Config.instance.setValue('android-sdk', sdkDir.path);
-
+      config.setValue('android-sdk', sdkDir.path);
+      processManager.excludedExecutables.add('/.tmp_rand0/flutter_mock_android_sdk.rand0/tools/bin/sdkmanager');
       final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-      when(processManager.canRun(sdk.sdkManagerPath)).thenReturn(false);
+
       expect(() => sdk.sdkManagerVersion, throwsToolExit());
     }, overrides: <Type, Generator>{
-      FileSystem: () => fs,
+      FileSystem: () => fileSystem,
       ProcessManager: () => processManager,
+      Config: () => config,
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
     });
 
-    group('ndk', () {
-      const <String, String>{
-        'linux': 'linux-x86_64',
-        'macos': 'darwin-x86_64',
-      }.forEach((String os, String osDir) {
-        testUsingContext('detection on $os', () {
-          sdkDir = MockAndroidSdk.createSdkDirectory(
-              withAndroidN: true, withNdkDir: osDir, withNdkSysroot: true);
-          Config.instance.setValue('android-sdk', sdkDir.path);
+    testUsingContext('returns avdmanager path under cmdline tools', () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
 
-          final String realSdkDir = sdkDir.path;
-          final String realNdkDir = fs.path.join(realSdkDir, 'ndk-bundle');
-          final String realNdkCompiler = fs.path.join(
-              realNdkDir,
-              'toolchains',
-              'arm-linux-androideabi-4.9',
-              'prebuilt',
-              osDir,
-              'bin',
-              'arm-linux-androideabi-gcc');
-          final String realNdkSysroot =
-              fs.path.join(realNdkDir, 'platforms', 'android-9', 'arch-arm');
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'avdmanager')
+      ).createSync(recursive: true);
 
-          final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-          expect(sdk.directory, realSdkDir);
-          expect(sdk.ndk, isNotNull);
-          expect(sdk.ndk.directory, realNdkDir);
-          expect(sdk.ndk.compiler, realNdkCompiler);
-          expect(sdk.ndk.compilerArgs, <String>['--sysroot', realNdkSysroot]);
-        }, overrides: <Type, Generator>{
-          FileSystem: () => fs,
-          ProcessManager: () => FakeProcessManager.any(),
-          Platform: () => FakePlatform(operatingSystem: os),
-        });
+      expect(sdk.avdManagerPath, fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'avdmanager'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
+      Config: () => config,
+    });
 
-        testUsingContext('newer NDK require explicit -fuse-ld on $os', () {
-          sdkDir = MockAndroidSdk.createSdkDirectory(
-              withAndroidN: true, withNdkDir: osDir, withNdkSysroot: true, ndkVersion: 18);
-          Config.instance.setValue('android-sdk', sdkDir.path);
+    testUsingContext('returns avdmanager path under cmdline tools on windows', () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
 
-          final String realSdkDir = sdkDir.path;
-          final String realNdkDir = fs.path.join(realSdkDir, 'ndk-bundle');
-          final String realNdkToolchainBin = fs.path.join(
-              realNdkDir,
-              'toolchains',
-              'arm-linux-androideabi-4.9',
-              'prebuilt',
-              osDir,
-              'bin');
-          final String realNdkCompiler = fs.path.join(
-              realNdkToolchainBin,
-              'arm-linux-androideabi-gcc');
-          final String realNdkLinker = fs.path.join(
-              realNdkToolchainBin,
-              'arm-linux-androideabi-ld');
-          final String realNdkSysroot =
-              fs.path.join(realNdkDir, 'platforms', 'android-9', 'arch-arm');
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'avdmanager.bat')
+      ).createSync(recursive: true);
 
-          final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-          expect(sdk.directory, realSdkDir);
-          expect(sdk.ndk, isNotNull);
-          expect(sdk.ndk.directory, realNdkDir);
-          expect(sdk.ndk.compiler, realNdkCompiler);
-          expect(sdk.ndk.compilerArgs, <String>['--sysroot', realNdkSysroot, '-fuse-ld=$realNdkLinker']);
-        }, overrides: <Type, Generator>{
-          FileSystem: () => fs,
-          ProcessManager: () => FakeProcessManager.any(),
-          Platform: () => FakePlatform(operatingSystem: os),
-        });
-      });
+      expect(sdk.avdManagerPath, fileSystem.path.join(sdk.directory.path, 'cmdline-tools', 'latest', 'bin', 'avdmanager.bat'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'windows'),
+      Config: () => config,
+    });
 
-      for (String os in <String>['linux', 'macos']) {
-        testUsingContext('detection on $os (no ndk available)', () {
-          sdkDir = MockAndroidSdk.createSdkDirectory(withAndroidN: true);
-          Config.instance.setValue('android-sdk', sdkDir.path);
+    testUsingContext("returns avdmanager path under tools if cmdline doesn't exist", () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
 
-          final String realSdkDir = sdkDir.path;
-          final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
-          expect(sdk.directory, realSdkDir);
-          expect(sdk.ndk, isNull);
-          final String explanation = AndroidNdk.explainMissingNdk(sdk.directory);
-          expect(explanation, contains('Can not locate ndk-bundle'));
-        }, overrides: <Type, Generator>{
-          FileSystem: () => fs,
-          ProcessManager: () => FakeProcessManager.any(),
-          Platform: () => FakePlatform(operatingSystem: os),
-        });
-      }
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'avdmanager')
+      ).createSync(recursive: true);
+
+      expect(sdk.avdManagerPath, fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'avdmanager'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'linux'),
+      Config: () => config,
+    });
+
+    testUsingContext("returns avdmanager path under tools if cmdline doesn't exist on windows", () {
+      sdkDir = MockAndroidSdk.createSdkDirectory();
+      config.setValue('android-sdk', sdkDir.path);
+
+      final AndroidSdk sdk = AndroidSdk.locateAndroidSdk();
+      fileSystem.file(
+        fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'avdmanager.bat')
+      ).createSync(recursive: true);
+
+      expect(sdk.avdManagerPath, fileSystem.path.join(sdk.directory.path, 'tools', 'bin', 'avdmanager.bat'));
+    }, overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      Platform: () => FakePlatform(operatingSystem: 'windows'),
+      Config: () => config,
     });
   });
 }
 
 /// A broken SDK installation.
-class MockBrokenAndroidSdk extends Mock implements AndroidSdk {
-  static Directory createSdkDirectory({
-    bool withAndroidN = false,
-    String withNdkDir,
-    bool withNdkSysroot = false,
-    bool withSdkManager = true,
-  }) {
-    final Directory dir = fs.systemTempDirectory.createTempSync('flutter_mock_android_sdk.');
-    final String exe = platform.isWindows ? '.exe' : '';
-    _createSdkFile(dir, 'licenses/dummy');
-    _createSdkFile(dir, 'platform-tools/adb$exe');
+Directory createSdkDirectory({
+  bool withAndroidN = false,
+  bool withSdkManager = true,
+  @required FileSystem fileSystem,
+}) {
+  final Directory dir = fileSystem.systemTempDirectory.createTempSync('flutter_mock_android_sdk.');
+  _createSdkFile(dir, 'licenses/dummy');
+  _createSdkFile(dir, 'platform-tools/adb');
 
-    _createSdkFile(dir, 'build-tools/sda/aapt$exe');
-    _createSdkFile(dir, 'build-tools/af/aapt$exe');
-    _createSdkFile(dir, 'build-tools/ljkasd/aapt$exe');
+  _createSdkFile(dir, 'build-tools/sda/aapt');
+  _createSdkFile(dir, 'build-tools/af/aapt');
+  _createSdkFile(dir, 'build-tools/ljkasd/aapt');
 
-    _createSdkFile(dir, 'platforms/android-22/android.jar');
-    _createSdkFile(dir, 'platforms/android-23/android.jar');
+  _createSdkFile(dir, 'platforms/android-22/android.jar');
+  _createSdkFile(dir, 'platforms/android-23/android.jar');
 
-    return dir;
-  }
+  return dir;
+}
 
-  static void _createSdkFile(Directory dir, String filePath, { String contents }) {
-    final File file = dir.childFile(filePath);
-    file.createSync(recursive: true);
-    if (contents != null) {
-      file.writeAsStringSync(contents, flush: true);
-    }
+void _createSdkFile(Directory dir, String filePath, { String contents }) {
+  final File file = dir.childFile(filePath);
+  file.createSync(recursive: true);
+  if (contents != null) {
+    file.writeAsStringSync(contents, flush: true);
   }
 }

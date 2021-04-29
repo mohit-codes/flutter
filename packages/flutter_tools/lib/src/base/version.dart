@@ -1,10 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:meta/meta.dart';
+
+@immutable
 class Version implements Comparable<Version> {
   /// Creates a new [Version] object.
-  factory Version(int major, int minor, int patch, {String text}) {
+  factory Version(int? major, int? minor, int? patch, {String? text}) {
     if (text == null) {
       text = major == null ? '0' : '$major';
       if (minor != null) {
@@ -17,6 +20,9 @@ class Version implements Comparable<Version> {
 
     return Version._(major ?? 0, minor ?? 0, patch ?? 0, text);
   }
+
+  /// Public constant constructor when all fields are non-null, without default value fallbacks.
+  const Version.withText(this.major, this.minor, this.patch, this._text);
 
   Version._(this.major, this.minor, this.patch, this._text) {
     if (major < 0) {
@@ -31,8 +37,8 @@ class Version implements Comparable<Version> {
   }
 
   /// Creates a new [Version] by parsing [text].
-  factory Version.parse(String text) {
-    final Match match = versionPattern.firstMatch(text ?? '');
+  static Version? parse(String? text) {
+    final Match? match = versionPattern.firstMatch(text ?? '');
     if (match == null) {
       return null;
     }
@@ -41,7 +47,7 @@ class Version implements Comparable<Version> {
       final int major = int.parse(match[1] ?? '0');
       final int minor = int.parse(match[3] ?? '0');
       final int patch = int.parse(match[5] ?? '0');
-      return Version._(major, minor, patch, text);
+      return Version._(major, minor, patch, text ?? '');
     } on FormatException {
       return null;
     }
@@ -50,9 +56,9 @@ class Version implements Comparable<Version> {
   /// Returns the primary version out of a list of candidates.
   ///
   /// This is the highest-numbered stable version.
-  static Version primary(List<Version> versions) {
-    Version primary;
-    for (Version version in versions) {
+  static Version? primary(List<Version> versions) {
+    Version? primary;
+    for (final Version version in versions) {
       if (primary == null || (version > primary)) {
         primary = version;
       }
@@ -84,11 +90,11 @@ class Version implements Comparable<Version> {
   /// Two [Version]s are equal if their version numbers are. The version text
   /// is ignored.
   @override
-  bool operator ==(dynamic other) {
-    if (other is! Version) {
-      return false;
-    }
-    return major == other.major && minor == other.minor && patch == other.patch;
+  bool operator ==(Object other) {
+    return other is Version
+        && other.major == major
+        && other.minor == minor
+        && other.patch == patch;
   }
 
   @override

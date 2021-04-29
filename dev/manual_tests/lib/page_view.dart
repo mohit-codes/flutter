@@ -1,10 +1,7 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class CardModel {
@@ -17,6 +14,8 @@ class CardModel {
 }
 
 class PageViewApp extends StatefulWidget {
+  const PageViewApp({Key key}) : super(key: key);
+
   @override
   PageViewAppState createState() => PageViewAppState();
 }
@@ -111,7 +110,7 @@ class PageViewAppState extends State<PageViewApp> {
     );
   }
 
-  Widget _buildAppBar() {
+  AppBar _buildAppBar() {
     return AppBar(
       title: const Text('PageView'),
       actions: <Widget>[
@@ -142,18 +141,10 @@ class PageViewAppState extends State<PageViewApp> {
 }
 
 void main() {
-  if (Platform.isMacOS) {
-    // TODO(gspencergoog): Update this when TargetPlatform includes macOS. https://github.com/flutter/flutter/issues/31366
-    // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  }
-  runApp(MaterialApp(
-    title: 'PageView',
-    theme: ThemeData(
-      brightness: Brightness.light,
-      primarySwatch: Colors.blue,
-      accentColor: Colors.redAccent,
+  runApp(
+    const MaterialApp(
+      title: 'PageView',
+      home: PageViewApp(),
     ),
-    home: PageViewApp(),
-  ));
+  );
 }

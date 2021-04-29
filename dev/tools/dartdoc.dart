@@ -1,8 +1,9 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+// @dart = 2.8
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,17 +12,22 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;
 import 'package:process/process.dart';
 
+import 'dartdoc_checker.dart';
+
 const String kDocsRoot = 'dev/docs';
 const String kPublishRoot = '$kDocsRoot/doc';
 const String kSnippetsRoot = 'dev/snippets';
+
+const String kDummyPackageName = 'Flutter';
+const String kPlatformIntegrationPackageName = 'platform_integration';
 
 /// This script expects to run with the cwd as the root of the flutter repo. It
 /// will generate documentation for the packages in `//packages/` and write the
 /// documentation to `//dev/docs/doc/api/`.
 ///
 /// This script also updates the index.html file so that it can be placed
-/// at the root of docs.flutter.io. We are keeping the files inside of
-/// docs.flutter.io/flutter for now, so we need to manipulate paths
+/// at the root of api.flutter.dev. We are keeping the files inside of
+/// api.flutter.dev/flutter for now, so we need to manipulate paths
 /// a bit. See https://github.com/flutter/flutter/issues/3900 for more info.
 ///
 /// This will only work on UNIX systems, not Windows. It requires that 'git' be
@@ -31,7 +37,7 @@ const String kSnippetsRoot = 'dev/snippets';
 Future<void> main(List<String> arguments) async {
   final ArgParser argParser = _createArgsParser();
   final ArgResults args = argParser.parse(arguments);
-  if (args['help']) {
+  if (args['help'] as bool) {
     print ('Usage:');
     print (argParser.usage);
     exit(0);
@@ -48,23 +54,21 @@ Future<void> main(List<String> arguments) async {
 
   // Create the pubspec.yaml file.
   final StringBuffer buf = StringBuffer();
-  buf.writeln('name: Flutter');
+  buf.writeln('name: $kDummyPackageName');
   buf.writeln('homepage: https://flutter.dev');
-  // TODO(dnfield): We should make DartDoc able to avoid emitting this. If we
-  // use the real value here, every file will get marked as new instead of only
-  // files that have otherwise changed. Instead, we replace it dynamically using
-  // JavaScript so that fewer files get marked as changed.
-  // https://github.com/dart-lang/dartdoc/issues/1982
+  // TODO(dnfield): Re-factor for proper versioning, https://github.com/flutter/flutter/issues/55409
   buf.writeln('version: 0.0.0');
+  buf.writeln('environment:');
+  buf.writeln("  sdk: '>=2.10.0 <3.0.0'");
   buf.writeln('dependencies:');
-  for (String package in findPackageNames()) {
+  for (final String package in findPackageNames()) {
     buf.writeln('  $package:');
     buf.writeln('    sdk: flutter');
   }
-  buf.writeln('  platform_integration: 0.0.1');
+  buf.writeln('  $kPlatformIntegrationPackageName: 0.0.1');
   buf.writeln('dependency_overrides:');
-  buf.writeln('  platform_integration:');
-  buf.writeln('    path: platform_integration');
+  buf.writeln('  $kPlatformIntegrationPackageName:');
+  buf.writeln('    path: $kPlatformIntegrationPackageName');
   File('$kDocsRoot/pubspec.yaml').writeAsStringSync(buf.toString());
 
   // Create the library file.
@@ -72,8 +76,8 @@ Future<void> main(List<String> arguments) async {
   libDir.createSync();
 
   final StringBuffer contents = StringBuffer('library temp_doc;\n\n');
-  for (String libraryRef in libraryRefs()) {
-    contents.writeln('import \'package:$libraryRef\';');
+  for (final String libraryRef in libraryRefs()) {
+    contents.writeln("import 'package:$libraryRef';");
   }
   File('$kDocsRoot/lib/temp_doc.dart').writeAsStringSync(contents.toString());
 
@@ -111,7 +115,7 @@ Future<void> main(List<String> arguments) async {
   final List<String> dartdocBaseArgs = <String>[
     'global',
     'run',
-    if (args['checked']) '-c',
+    if (args['checked'] as bool) '-c',
     'dartdoc',
   ];
 
@@ -124,33 +128,35 @@ Future<void> main(List<String> arguments) async {
   );
   print('\n${result.stdout}flutter version: $version\n');
 
+  // Dartdoc warnings and errors in these packages are considered fatal.
+  // All packages owned by flutter should be in the list.
+  // TODO(goderbauer): Figure out how to add 'dart:ui'.
+  final List<String> flutterPackages = <String>[
+    kDummyPackageName,
+    kPlatformIntegrationPackageName,
+    ...findPackageNames(),
+  ];
+
   // Generate the documentation.
   // We don't need to exclude flutter_tools in this list because it's not in the
   // recursive dependencies of the package defined at dev/docs/pubspec.yaml
   final List<String> dartdocArgs = <String>[
     ...dartdocBaseArgs,
     '--allow-tools',
-    if (args['json']) '--json',
-    if (args['validate-links']) '--validate-links' else '--no-validate-links',
+    if (args['json'] as bool) '--json',
+    if (args['validate-links'] as bool) '--validate-links' else '--no-validate-links',
     '--link-to-source-excludes', '../../bin/cache',
     '--link-to-source-root', '../..',
     '--link-to-source-uri-template', 'https://github.com/flutter/flutter/blob/master/%f%#L%l%',
     '--inject-html',
+    '--use-base-href',
     '--header', 'styles.html',
     '--header', 'analytics.html',
     '--header', 'survey.html',
     '--header', 'snippets.html',
     '--header', 'opensearch.html',
     '--footer-text', 'lib/footer.html',
-    '--allow-warnings-in-packages',
-    <String>[
-      'Flutter',
-      'flutter',
-      'platform_integration',
-      'flutter_test',
-      'flutter_driver',
-      'flutter_localizations',
-    ].join(','),
+    '--allow-warnings-in-packages', flutterPackages.join(','),
     '--exclude-packages',
     <String>[
       'analyzer',
@@ -184,6 +190,7 @@ Future<void> main(List<String> arguments) async {
     ].join(','),
     '--exclude',
     <String>[
+      'dart:io/network_policy.dart', // dart-lang/dartdoc#2437
       'package:Flutter/temp_doc.dart',
       'package:http/browser_client.dart',
       'package:intl/intl_browser.dart',
@@ -194,7 +201,7 @@ Future<void> main(List<String> arguments) async {
       'package:web_socket_channel/html.dart',
     ].join(','),
     '--favicon=favicon.ico',
-    '--package-order', 'flutter,Dart,platform_integration,flutter_test,flutter_driver',
+    '--package-order', 'flutter,Dart,$kPlatformIntegrationPackageName,flutter_test,flutter_driver',
     '--auto-include-dependencies',
   ];
 
@@ -207,14 +214,14 @@ Future<void> main(List<String> arguments) async {
     workingDirectory: kDocsRoot,
     environment: pubEnvironment,
   ));
-  printStream(process.stdout, prefix: args['json'] ? '' : 'dartdoc:stdout: ',
-    filter: args['verbose'] ? const <Pattern>[] : <Pattern>[
+  printStream(process.stdout, prefix: args['json'] as bool ? '' : 'dartdoc:stdout: ',
+    filter: args['verbose'] as bool ? const <Pattern>[] : <Pattern>[
       RegExp(r'^generating docs for library '), // unnecessary verbosity
       RegExp(r'^pars'), // unnecessary verbosity
     ],
   );
-  printStream(process.stderr, prefix: args['json'] ? '' : 'dartdoc:stderr: ',
-    filter: args['verbose'] ? const <Pattern>[] : <Pattern>[
+  printStream(process.stderr, prefix: args['json'] as bool ? '' : 'dartdoc:stderr: ',
+    filter: args['verbose'] as bool ? const <Pattern>[] : <Pattern>[
       RegExp(r'^ warning: .+: \(.+/\.pub-cache/hosted/pub.dartlang.org/.+\)'), // packages outside our control
     ],
   );
@@ -224,6 +231,7 @@ Future<void> main(List<String> arguments) async {
     exit(exitCode);
 
   sanityCheckDocs();
+  checkForUnresolvedDirectives('$kPublishRoot/api');
 
   createIndexAndCleanup();
 }
@@ -252,7 +260,7 @@ String getBranchName() {
   if (gitResult.exitCode != 0)
     throw 'git status exit with non-zero exit code: ${gitResult.exitCode}';
   final Match gitBranchMatch = gitBranchRegexp.firstMatch(
-      gitResult.stdout.trim().split('\n').first);
+      (gitResult.stdout as String).trim().split('\n').first);
   return gitBranchMatch == null ? '' : gitBranchMatch.group(1).split('...').first;
 }
 
@@ -262,7 +270,7 @@ String gitRevision() {
   final ProcessResult gitResult = Process.runSync('git', <String>['rev-parse', 'HEAD']);
   if (gitResult.exitCode != 0)
     throw 'git rev-parse exit with non-zero exit code: ${gitResult.exitCode}';
-  final String gitRevision = gitResult.stdout.trim();
+  final String gitRevision = (gitResult.stdout as String).trim();
 
   return gitRevision.length > kGitRevisionLength ? gitRevision.substring(0, kGitRevisionLength) : gitRevision;
 }
@@ -274,7 +282,8 @@ void createFooter(String footerPath, String version) {
   File('${footerPath}footer.html').writeAsStringSync('<script src="footer.js"></script>');
   File('$kPublishRoot/api/footer.js')
     ..createSync(recursive: true)
-    ..writeAsStringSync('''(function() {
+    ..writeAsStringSync('''
+(function() {
   var span = document.querySelector('footer>span');
   if (span) {
     span.innerText = 'Flutter $version • $timestamp • ${gitRevision()} $gitBranchOut';
@@ -296,7 +305,7 @@ void createSearchMetadata(String templatePath, String metadataPath) {
   final String branch = getBranchName();
   final String metadata = template.replaceAll(
     '{SITE_URL}',
-    branch == 'stable' ? 'https://docs.flutter.io/' : 'https://master-docs.flutter.io/',
+    branch == 'stable' ? 'https://api.flutter.dev/' : 'https://master-api.flutter.dev/',
   );
   Directory(path.dirname(metadataPath)).create(recursive: true);
   File(metadataPath).writeAsStringSync(metadata);
@@ -306,14 +315,14 @@ void createSearchMetadata(String templatePath, String metadataPath) {
 /// specified, for each source/destination file pair.
 ///
 /// Creates `destDir` if needed.
-void copyDirectorySync(Directory srcDir, Directory destDir, [void onFileCopied(File srcFile, File destFile)]) {
+void copyDirectorySync(Directory srcDir, Directory destDir, [void Function(File srcFile, File destFile) onFileCopied]) {
   if (!srcDir.existsSync())
     throw Exception('Source directory "${srcDir.path}" does not exist, nothing to copy');
 
   if (!destDir.existsSync())
     destDir.createSync(recursive: true);
 
-  for (FileSystemEntity entity in srcDir.listSync()) {
+  for (final FileSystemEntity entity in srcDir.listSync()) {
     final String newPath = path.join(destDir.path, path.basename(entity.path));
     if (entity is File) {
       final File newFile = File(newPath);
@@ -361,7 +370,7 @@ void sanityCheckDocs() {
     '$kPublishRoot/api/material/Tooltip-class.html',
     '$kPublishRoot/api/widgets/Widget-class.html',
   ];
-  for (String canary in canaries) {
+  for (final String canary in canaries) {
     if (!File(canary).existsSync())
       throw Exception('Missing "$canary", which probably means the documentation failed to build correctly.');
   }
@@ -454,13 +463,17 @@ List<String> findPackageNames() {
 }
 
 /// Finds all packages in the Flutter SDK
-List<FileSystemEntity> findPackages() {
+List<Directory> findPackages() {
   return Directory('packages')
     .listSync()
     .where((FileSystemEntity entity) {
       if (entity is! Directory)
         return false;
       final File pubspec = File('${entity.path}/pubspec.yaml');
+      if (!pubspec.existsSync()) {
+        print("Unexpected package '${entity.path}' found in packages directory");
+        return false;
+      }
       // TODO(ianh): Use a real YAML parser here
       return !pubspec.readAsStringSync().contains('nodoc: true');
     })
@@ -470,9 +483,9 @@ List<FileSystemEntity> findPackages() {
 
 /// Returns import or on-disk paths for all libraries in the Flutter SDK.
 Iterable<String> libraryRefs() sync* {
-  for (Directory dir in findPackages()) {
+  for (final Directory dir in findPackages()) {
     final String dirName = path.basename(dir.path);
-    for (FileSystemEntity file in Directory('${dir.path}/lib').listSync()) {
+    for (final FileSystemEntity file in Directory('${dir.path}/lib').listSync()) {
       if (file is File && file.path.endsWith('.dart')) {
         yield '$dirName/${path.basename(file.path)}';
       }
@@ -480,8 +493,8 @@ Iterable<String> libraryRefs() sync* {
   }
 
   // Add a fake package for platform integration APIs.
-  yield 'platform_integration/android.dart';
-  yield 'platform_integration/ios.dart';
+  yield '$kPlatformIntegrationPackageName/android.dart';
+  yield '$kPlatformIntegrationPackageName/ios.dart';
 }
 
 void printStream(Stream<List<int>> stream, { String prefix = '', List<Pattern> filter = const <Pattern>[] }) {

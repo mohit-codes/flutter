@@ -1,17 +1,17 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:math' as math;
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void verifyPaintPosition(GlobalKey key, Offset ideal) {
-  final RenderObject target = key.currentContext.findRenderObject();
-  expect(target.parent, isInstanceOf<RenderViewport>());
-  final SliverPhysicalParentData parentData = target.parentData;
+  final RenderObject target = key.currentContext!.findRenderObject()!;
+  expect(target.parent, isA<RenderViewport>());
+  final SliverPhysicalParentData parentData = target.parentData! as SliverPhysicalParentData;
   final Offset actual = parentData.paintOffset;
   expect(actual, ideal);
 }
@@ -45,10 +45,10 @@ void main() {
     expect(position.pixels, max);
     expect(position.minScrollExtent, 0.0);
     expect(position.maxScrollExtent, max);
-    verifyPaintPosition(key1, const Offset(0.0, 0.0));
-    verifyPaintPosition(key2, const Offset(0.0, 0.0));
-    verifyPaintPosition(key3, const Offset(0.0, 0.0));
-    verifyPaintPosition(key4, const Offset(0.0, 0.0));
+    verifyPaintPosition(key1, Offset.zero);
+    verifyPaintPosition(key2, Offset.zero);
+    verifyPaintPosition(key3, Offset.zero);
+    verifyPaintPosition(key4, Offset.zero);
     verifyPaintPosition(key5, const Offset(0.0, 50.0));
   });
 }
@@ -68,7 +68,7 @@ class RenderBigSliver extends RenderSliver {
 }
 
 class BigSliver extends LeafRenderObjectWidget {
-  const BigSliver({ Key key }) : super(key: key);
+  const BigSliver({ Key? key }) : super(key: key);
   @override
   RenderBigSliver createRenderObject(BuildContext context) {
     return RenderBigSliver();
@@ -105,7 +105,7 @@ class RenderOverlappingSliver extends RenderSliver {
 }
 
 class OverlappingSliver extends LeafRenderObjectWidget {
-  const OverlappingSliver({ Key key }) : super(key: key);
+  const OverlappingSliver({ Key? key }) : super(key: key);
   @override
   RenderOverlappingSliver createRenderObject(BuildContext context) {
     return RenderOverlappingSliver();

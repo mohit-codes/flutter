@@ -1,6 +1,6 @@
-// Copyright 2017, the Flutter project authors. Please see the AUTHORS file
-// for details. All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import 'dart:async';
 import 'dart:io';
@@ -8,10 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 void main() {
-  runApp(PlatformView());
+  runApp(const PlatformView());
 }
 
 class PlatformView extends StatelessWidget {
+  const PlatformView({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -25,7 +27,7 @@ class PlatformView extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key key, this.title}) : super(key: key);
+  const MyHomePage({Key? key, required this.title}) : super(key: key);
 
   final String title;
 
@@ -46,10 +48,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _launchPlatformCount() async {
-    final int platformCounter =
+    final int? platformCounter =
         await _methodChannel.invokeMethod('switchView', _counter);
     setState(() {
-      _counter = platformCounter;
+      _counter = platformCounter!;
     });
   }
 
@@ -72,11 +74,12 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(18.0),
-                      child: RaisedButton(
-                          child: Platform.isIOS
-                              ? const Text('Continue in iOS view')
-                              : const Text('Continue in Android view'),
-                          onPressed: _launchPlatformCount),
+                      child: ElevatedButton(
+                        child: Platform.isIOS
+                          ? const Text('Continue in iOS view')
+                          : const Text('Continue in Android view'),
+                        onPressed: _launchPlatformCount,
+                      ),
                     ),
                   ],
                 ),
@@ -86,8 +89,7 @@ class _MyHomePageState extends State<MyHomePage> {
               padding: const EdgeInsets.only(bottom: 15.0, left: 5.0),
               child: Row(
                 children: <Widget>[
-                  Image.asset('assets/flutter-mark-square-64.png',
-                      scale: 1.5),
+                  Image.asset('assets/flutter-mark-square-64.png', scale: 1.5),
                   const Text(
                     'Flutter',
                     style: TextStyle(fontSize: 30.0),

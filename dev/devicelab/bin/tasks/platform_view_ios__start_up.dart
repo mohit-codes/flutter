@@ -1,14 +1,13 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_devicelab/framework/utils.dart';
-import 'package:flutter_devicelab/tasks/perf_tests.dart';
 import 'package:flutter_devicelab/framework/adb.dart';
 import 'package:flutter_devicelab/framework/framework.dart';
+import 'package:flutter_devicelab/framework/utils.dart';
+import 'package:flutter_devicelab/tasks/perf_tests.dart';
 
 Future<void> main() async {
   deviceOperatingSystem = DeviceOperatingSystem.ios;
@@ -19,15 +18,21 @@ Future<void> main() async {
     );
     await inDirectory(platformViewDirectory, () async {
       await flutter('pub', options: <String>['get']);
-    });
-    final Directory iosDirectory = dir(
-      '$platformViewDirectoryPath/ios',
-    );
-    await inDirectory(iosDirectory, () async {
-      await exec('pod', <String>['install']);
+      // Pre-cache the iOS artifacts; this may be the first test run on this machine.
+      await flutter(
+        'precache',
+        options: <String>[
+          '--no-android',
+          '--no-fuchsia',
+          '--no-linux',
+          '--no-macos',
+          '--no-web',
+          '--no-windows',
+        ],
+      );
     });
 
     final TaskFunction taskFunction = createPlatformViewStartupTest();
-    return await taskFunction();
+    return taskFunction();
   });
 }

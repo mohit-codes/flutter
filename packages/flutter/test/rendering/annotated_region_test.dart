@@ -1,10 +1,10 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import '../flutter_test_alternative.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('$AnnotatedRegion find', () {
@@ -16,7 +16,7 @@ void main() {
         OffsetLayer(offset: const Offset(0.0, 200.0)),
       ];
       int i = 0;
-      for (OffsetLayer layer in layers) {
+      for (final OffsetLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i, size: const Size(200.0, 100.0)));
         containerLayer.append(layer);
         i += 1;
@@ -35,7 +35,7 @@ void main() {
         ClipRectLayer(clipRect: const Rect.fromLTRB(0.0, 200.0, 100.0, 300.0)),
       ];
       int i = 0;
-      for (ClipRectLayer layer in layers) {
+      for (final ClipRectLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i));
         containerLayer.append(layer);
         i += 1;
@@ -55,7 +55,7 @@ void main() {
         ClipRRectLayer(clipRRect: RRect.fromLTRBR(0.0, 200.0, 100.0, 300.0, const Radius.circular(4.0))),
       ];
       int i = 0;
-      for (ClipRRectLayer layer in layers) {
+      for (final ClipRRectLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i));
         containerLayer.append(layer);
         i += 1;
@@ -80,7 +80,7 @@ void main() {
         OffsetLayer(offset: const Offset(0.0, 200.0)),
       ];
       int i = 0;
-      for (OffsetLayer layer in layers) {
+      for (final OffsetLayer layer in layers) {
         final AnnotatedRegionLayer<int> annotatedRegionLayer = AnnotatedRegionLayer<int>(i, size: const Size(100.0, 100.0));
         layer.append(annotatedRegionLayer);
         transformLayer.append(layer);
@@ -124,16 +124,16 @@ void main() {
       expect(layer.find<int>(const Offset(100.0, 100.0)), 1);
     });
 
-    test('handles non-invertable transforms', () {
+    test('handles non-invertible transforms', () {
       final AnnotatedRegionLayer<int> child = AnnotatedRegionLayer<int>(1);
       final TransformLayer parent = TransformLayer(transform: Matrix4.diagonal3Values(0.0, 1.0, 1.0));
       parent.append(child);
 
-      expect(parent.find<int>(const Offset(0.0, 0.0)), null);
+      expect(parent.find<int>(Offset.zero), null);
 
       parent.transform = Matrix4.diagonal3Values(1.0, 1.0, 1.0);
 
-      expect(parent.find<int>(const Offset(0.0, 0.0)), 1);
+      expect(parent.find<int>(Offset.zero), 1);
     });
   });
   group('$AnnotatedRegion findAllAnnotations', () {
@@ -145,7 +145,7 @@ void main() {
         OffsetLayer(offset: const Offset(0.0, 200.0)),
       ];
       int i = 0;
-      for (OffsetLayer layer in layers) {
+      for (final OffsetLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i, size: const Size(200.0, 100.0)));
         containerLayer.append(layer);
         i += 1;
@@ -164,7 +164,7 @@ void main() {
         ClipRectLayer(clipRect: const Rect.fromLTRB(0.0, 200.0, 100.0, 300.0)),
       ];
       int i = 0;
-      for (ClipRectLayer layer in layers) {
+      for (final ClipRectLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i));
         containerLayer.append(layer);
         i += 1;
@@ -184,7 +184,7 @@ void main() {
         ClipRRectLayer(clipRRect: RRect.fromLTRBR(0.0, 200.0, 100.0, 300.0, const Radius.circular(4.0))),
       ];
       int i = 0;
-      for (ClipRRectLayer layer in layers) {
+      for (final ClipRRectLayer layer in layers) {
         layer.append(AnnotatedRegionLayer<int>(i));
         containerLayer.append(layer);
         i += 1;
@@ -209,7 +209,7 @@ void main() {
         OffsetLayer(offset: const Offset(0.0, 200.0)),
       ];
       int i = 0;
-      for (OffsetLayer layer in layers) {
+      for (final OffsetLayer layer in layers) {
         final AnnotatedRegionLayer<int> annotatedRegionLayer = AnnotatedRegionLayer<int>(i, size: const Size(100.0, 100.0));
         layer.append(annotatedRegionLayer);
         transformLayer.append(layer);
@@ -231,13 +231,13 @@ void main() {
         AnnotatedRegionLayer<int>(index++, size: const Size(100.0, 100.0)),
         AnnotatedRegionLayer<int>(index++, size: const Size(100.0, 100.0)),
       ];
-      for (ContainerLayer layer in layers) {
+      for (final ContainerLayer layer in layers) {
         final AnnotatedRegionLayer<int> annotatedRegionLayer = AnnotatedRegionLayer<int>(index++, size: const Size(100.0, 100.0));
         layer.append(annotatedRegionLayer);
         parent.append(layer);
       }
 
-      expect(parent.findAllAnnotations<int>(const Offset(0.0, 0.0)).annotations.toList(), equals(<int>[3, 1, 2, 0,]));
+      expect(parent.findAllAnnotations<int>(Offset.zero).annotations.toList(), equals(<int>[3, 1, 2, 0,]));
     });
 
     test('looks for child AnnotatedRegions before parents', () {
@@ -274,16 +274,16 @@ void main() {
       expect(layer.findAllAnnotations<int>(const Offset(100.0, 100.0)).annotations.toList(), equals(<int>[1]));
     });
 
-    test('handles non-invertable transforms', () {
+    test('handles non-invertible transforms', () {
       final AnnotatedRegionLayer<int> child = AnnotatedRegionLayer<int>(1);
       final TransformLayer parent = TransformLayer(transform: Matrix4.diagonal3Values(0.0, 1.0, 1.0));
       parent.append(child);
 
-      expect(parent.findAllAnnotations<int>(const Offset(0.0, 0.0)).annotations.toList(), equals(<int>[]));
+      expect(parent.findAllAnnotations<int>(Offset.zero).annotations.toList(), equals(<int>[]));
 
       parent.transform = Matrix4.diagonal3Values(1.0, 1.0, 1.0);
 
-      expect(parent.findAllAnnotations<int>(const Offset(0.0, 0.0)).annotations.toList(), equals(<int>[1]));
+      expect(parent.findAllAnnotations<int>(Offset.zero).annotations.toList(), equals(<int>[1]));
     });
   });
 }

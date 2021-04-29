@@ -1,12 +1,17 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/widgets.dart';
 
 class TestWidget extends StatefulWidget {
-  const TestWidget({ this.child, this.persistentState, this.syncedState });
+  const TestWidget({
+    Key? key,
+    required this.child,
+    required this.persistentState,
+    required this.syncedState,
+  }) : super(key: key);
 
   final Widget child;
   final int persistentState;
@@ -17,8 +22,8 @@ class TestWidget extends StatefulWidget {
 }
 
 class TestWidgetState extends State<TestWidget> {
-  int persistentState;
-  int syncedState;
+  late int persistentState;
+  late int syncedState;
   int updates = 0;
 
   @override
@@ -46,9 +51,12 @@ void main() {
   testWidgets('no change', (WidgetTester tester) async {
     await tester.pumpWidget(
       Container(
+        color: Colors.blue,
         child: Container(
+          color: Colors.blue,
           child: TestWidget(
             persistentState: 1,
+            syncedState: 0,
             child: Container(),
           ),
         ),
@@ -62,9 +70,12 @@ void main() {
 
     await tester.pumpWidget(
       Container(
+        color: Colors.blue,
         child: Container(
+          color: Colors.blue,
           child: TestWidget(
             persistentState: 2,
+            syncedState: 0,
             child: Container(),
           ),
         ),
@@ -80,9 +91,12 @@ void main() {
   testWidgets('remove one', (WidgetTester tester) async {
     await tester.pumpWidget(
       Container(
+        color: Colors.blue,
         child: Container(
+          color: Colors.blue,
           child: TestWidget(
             persistentState: 10,
+            syncedState: 0,
             child: Container(),
           ),
         ),
@@ -96,8 +110,10 @@ void main() {
 
     await tester.pumpWidget(
       Container(
+        color: Colors.green,
         child: TestWidget(
           persistentState: 11,
+          syncedState: 0,
           child: Container(),
         ),
       ),

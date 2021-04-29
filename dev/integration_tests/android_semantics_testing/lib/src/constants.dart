@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -57,6 +57,7 @@ class AndroidSemanticsAction {
   static const int _kSetSelectionIndex = 1 << 17;
   static const int _kExpandIndex = 1 << 18;
   static const int _kCollapseIndex = 1 << 19;
+  static const int _kSetText = 1 << 21;
 
   /// Matches `AccessibilityAction.ACTION_FOCUS`.
   static const AndroidSemanticsAction focus = AndroidSemanticsAction._(_kFocusIndex);
@@ -118,6 +119,9 @@ class AndroidSemanticsAction {
   /// Matches `AccessibilityAction.ACTION_COLLAPSE`.
   static const AndroidSemanticsAction collapse = AndroidSemanticsAction._(_kCollapseIndex);
 
+  /// Matches `AccessibilityAction.SET_TEXT`.
+  static const AndroidSemanticsAction setText = AndroidSemanticsAction._(_kSetText);
+
   @override
   String toString() {
     switch (id) {
@@ -140,7 +144,7 @@ class AndroidSemanticsAction {
       case _kNextAtMovementGranularityIndex:
         return 'AndroidSemanticsAction.nextAtMovementGranularity';
       case _kPreviousAtMovementGranularityIndex:
-        return 'AndroidSemanticsAction.nextAtMovementGranularity';
+        return 'AndroidSemanticsAction.previousAtMovementGranularity';
       case _kNextHtmlElementIndex:
         return 'AndroidSemanticsAction.nextHtmlElement';
       case _kPreviousHtmlElementIndex:
@@ -161,6 +165,8 @@ class AndroidSemanticsAction {
         return 'AndroidSemanticsAction.expand';
       case _kCollapseIndex:
         return 'AndroidSemanticsAction.collapse';
+      case _kSetText:
+        return 'AndroidSemanticsAction.setText';
       default:
         return null;
     }
@@ -176,7 +182,7 @@ class AndroidSemanticsAction {
     _kAccessibilityFocusIndex: accessibilityFocus,
     _kClearAccessibilityFocusIndex: clearAccessibilityFocus,
     _kNextAtMovementGranularityIndex: nextAtMovementGranularity,
-    _kPreviousAtMovementGranularityIndex: nextAtMovementGranularity,
+    _kPreviousAtMovementGranularityIndex: previousAtMovementGranularity,
     _kNextHtmlElementIndex: nextHtmlElement,
     _kPreviousHtmlElementIndex: previousHtmlElement,
     _kScrollForwardIndex: scrollForward,
@@ -187,6 +193,7 @@ class AndroidSemanticsAction {
     _kSetSelectionIndex: setSelection,
     _kExpandIndex: expand,
     _kCollapseIndex: collapse,
+    _kSetText: setText,
   };
 
   @override
@@ -196,8 +203,8 @@ class AndroidSemanticsAction {
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType)
       return false;
-    final AndroidSemanticsAction typedOther = other;
-    return id == typedOther.id;
+    return other is AndroidSemanticsAction
+        && other.id == id;
   }
 
   /// Creates a new [AndroidSemanticsAction] from an integer `value`.

@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ import 'framework.dart';
 ///
 ///  * [ValueListenableBuilder], a widget which invokes this builder each time
 ///    a [ValueListenable] changes value.
-typedef ValueWidgetBuilder<T> = Widget Function(BuildContext context, T value, Widget child);
+typedef ValueWidgetBuilder<T> = Widget Function(BuildContext context, T value, Widget? child);
 
 /// A widget whose content stays synced with a [ValueListenable].
 ///
@@ -40,14 +40,14 @@ typedef ValueWidgetBuilder<T> = Widget Function(BuildContext context, T value, W
 /// Using this pre-built child is entirely optional, but can improve
 /// performance significantly in some cases and is therefore a good practice.
 ///
-/// {@tool sample}
+/// {@tool snippet}
 ///
 /// This sample shows how you could use a [ValueListenableBuilder] instead of
 /// setting state on the whole [Scaffold] in the default `flutter create` app.
 ///
 /// ```dart
 /// class MyHomePage extends StatefulWidget {
-///   MyHomePage({Key key, this.title}) : super(key: key);
+///   const MyHomePage({Key? key, required this.title}) : super(key: key);
 ///   final String title;
 ///
 ///   @override
@@ -67,16 +67,16 @@ typedef ValueWidgetBuilder<T> = Widget Function(BuildContext context, T value, W
 ///         child: Column(
 ///           mainAxisAlignment: MainAxisAlignment.center,
 ///           children: <Widget>[
-///             Text('You have pushed the button this many times:'),
-///             ValueListenableBuilder(
-///               builder: (BuildContext context, int value, Widget child) {
+///             const Text('You have pushed the button this many times:'),
+///             ValueListenableBuilder<int>(
+///               builder: (BuildContext context, int value, Widget? child) {
 ///                 // This builder will only get called when the _counter
 ///                 // is updated.
 ///                 return Row(
 ///                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
 ///                   children: <Widget>[
 ///                     Text('$value'),
-///                     child,
+///                     child!,
 ///                   ],
 ///                 );
 ///               },
@@ -90,7 +90,7 @@ typedef ValueWidgetBuilder<T> = Widget Function(BuildContext context, T value, W
 ///         ),
 ///       ),
 ///       floatingActionButton: FloatingActionButton(
-///         child: Icon(Icons.plus_one),
+///         child: const Icon(Icons.plus_one),
 ///         onPressed: () => _counter.value += 1,
 ///       ),
 ///     );
@@ -115,11 +115,13 @@ class ValueListenableBuilder<T> extends StatefulWidget {
   /// The [child] is optional but is good practice to use if part of the widget
   /// subtree does not depend on the value of the [valueListenable].
   const ValueListenableBuilder({
-    @required this.valueListenable,
-    @required this.builder,
+    Key? key,
+    required this.valueListenable,
+    required this.builder,
     this.child,
   }) : assert(valueListenable != null),
-       assert(builder != null);
+       assert(builder != null),
+       super(key: key);
 
   /// The [ValueListenable] whose value you depend on in order to build.
   ///
@@ -144,14 +146,14 @@ class ValueListenableBuilder<T> extends StatefulWidget {
   /// the [builder] builds depends on the value of the [valueListenable]. For
   /// example, if the [valueListenable] is a [String] and the [builder] simply
   /// returns a [Text] widget with the [String] value.
-  final Widget child;
+  final Widget? child;
 
   @override
   State<StatefulWidget> createState() => _ValueListenableBuilderState<T>();
 }
 
 class _ValueListenableBuilderState<T> extends State<ValueListenableBuilder<T>> {
-  T value;
+  late T value;
 
   @override
   void initState() {

@@ -1,28 +1,49 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:process/process.dart';
+
 import '../base/common.dart';
-import '../base/file_system.dart' hide IOSink;
 import '../base/file_system.dart';
 import '../base/io.dart';
+import '../base/logger.dart';
 import '../base/platform.dart';
-import '../base/process_manager.dart';
 import '../base/terminal.dart';
 import '../base/utils.dart';
 import '../convert.dart';
-import '../globals.dart';
 
+/// An interface to the Dart analysis server.
 class AnalysisServer {
-  AnalysisServer(this.sdkPath, this.directories);
+  AnalysisServer(
+    this.sdkPath,
+    this.directories, {
+    required FileSystem fileSystem,
+    required ProcessManager processManager,
+    required Logger logger,
+    required Platform platform,
+    required Terminal terminal,
+    String? protocolTrafficLog,
+  }) : _fileSystem = fileSystem,
+       _processManager = processManager,
+       _logger = logger,
+       _platform = platform,
+       _terminal = terminal,
+       _protocolTrafficLog = protocolTrafficLog;
 
   final String sdkPath;
   final List<String> directories;
+  final FileSystem _fileSystem;
+  final ProcessManager _processManager;
+  final Logger _logger;
+  final Platform _platform;
+  final Terminal _terminal;
+  final String? _protocolTrafficLog;
 
-  Process _process;
+  Process? _process;
   final StreamController<bool> _analyzingController =
       StreamController<bool>.broadcast();
   final StreamController<FileAnalysisErrors> _errorsController =
@@ -32,28 +53,37 @@ class AnalysisServer {
   int _id = 0;
 
   Future<void> start() async {
-    final String snapshot =
-        fs.path.join(sdkPath, 'bin/snapshots/analysis_server.dart.snapshot');
+    final String snapshot = _fileSystem.path.join(
+      sdkPath,
+      'bin',
+      'snapshots',
+      'analysis_server.dart.snapshot',
+    );
     final List<String> command = <String>[
-      fs.path.join(sdkPath, 'bin', 'dart'),
+      _fileSystem.path.join(sdkPath, 'bin', 'dart'),
+      '--disable-dart-dev',
       snapshot,
       '--disable-server-feature-completion',
       '--disable-server-feature-search',
       '--sdk',
       sdkPath,
+      if (_protocolTrafficLog != null)
+        '--protocol-traffic-log=$_protocolTrafficLog',
     ];
 
-    printTrace('dart ${command.skip(1).join(' ')}');
-    _process = await processManager.start(command);
+    _logger.printTrace('dart ${command.skip(1).join(' ')}');
+    _process = await _processManager.start(command);
     // This callback hookup can't throw.
-    unawaited(_process.exitCode.whenComplete(() => _process = null));
+    unawaited(_process!.exitCode.whenComplete(() => _process = null));
 
-    final Stream<String> errorStream =
-        _process.stderr.transform<String>(utf8.decoder).transform<String>(const LineSplitter());
-    errorStream.listen(printError);
+    final Stream<String> errorStream = _process!.stderr
+        .transform<String>(utf8.decoder)
+        .transform<String>(const LineSplitter());
+    errorStream.listen(_logger.printError);
 
-    final Stream<String> inStream =
-        _process.stdout.transform<String>(utf8.decoder).transform<String>(const LineSplitter());
+    final Stream<String> inStream = _process!.stdout
+        .transform<String>(utf8.decoder)
+        .transform<String>(const LineSplitter());
     inStream.listen(_handleServerResponse);
 
     _sendCommand('server.setSubscriptions', <String, dynamic>{
@@ -65,10 +95,12 @@ class AnalysisServer {
   }
 
   bool get didServerErrorOccur => _didServerErrorOccur;
+
   Stream<bool> get onAnalyzing => _analyzingController.stream;
+
   Stream<FileAnalysisErrors> get onErrors => _errorsController.stream;
 
-  Future<int> get onExit => _process.exitCode;
+  Future<int?> get onExit async => _process?.exitCode;
 
   void _sendCommand(String method, Map<String, dynamic> params) {
     final String message = json.encode(<String, dynamic>{
@@ -76,36 +108,40 @@ class AnalysisServer {
       'method': method,
       'params': params,
     });
-    _process.stdin.writeln(message);
-    printTrace('==> $message');
+    _process?.stdin.writeln(message);
+    _logger.printTrace('==> $message');
   }
 
   void _handleServerResponse(String line) {
-    printTrace('<== $line');
+    _logger.printTrace('<== $line');
 
     final dynamic response = json.decode(line);
 
-    if (response is Map<dynamic, dynamic>) {
+    if (response is Map<String, dynamic>) {
       if (response['event'] != null) {
-        final String event = response['event'];
+        final String event = response['event'] as String;
         final dynamic params = response['params'];
+        Map<String, dynamic>? paramsMap;
+        if (params is Map<String, dynamic>) {
+          paramsMap = castStringKeyedMap(params);
+        }
 
-        if (params is Map<dynamic, dynamic>) {
+        if (paramsMap != null) {
           if (event == 'server.status') {
-            _handleStatus(response['params']);
+            _handleStatus(paramsMap);
           } else if (event == 'analysis.errors') {
-            _handleAnalysisIssues(response['params']);
+            _handleAnalysisIssues(paramsMap);
           } else if (event == 'server.error') {
-            _handleServerError(response['params']);
+            _handleServerError(paramsMap);
           }
         }
       } else if (response['error'] != null) {
         // Fields are 'code', 'message', and 'stackTrace'.
-        final Map<String, dynamic> error = response['error'];
-        printError(
+        final Map<String, dynamic> error = castStringKeyedMap(response['error']!)!;
+        _logger.printError(
             'Error response from the server: ${error['code']} ${error['message']}');
         if (error['stackTrace'] != null) {
-          printError(error['stackTrace']);
+          _logger.printError(error['stackTrace'] as String);
         }
       }
     }
@@ -114,125 +150,189 @@ class AnalysisServer {
   void _handleStatus(Map<String, dynamic> statusInfo) {
     // {"event":"server.status","params":{"analysis":{"isAnalyzing":true}}}
     if (statusInfo['analysis'] != null && !_analyzingController.isClosed) {
-      final bool isAnalyzing = statusInfo['analysis']['isAnalyzing'];
+      final bool isAnalyzing = statusInfo['analysis']['isAnalyzing'] as bool;
       _analyzingController.add(isAnalyzing);
     }
   }
 
   void _handleServerError(Map<String, dynamic> error) {
     // Fields are 'isFatal', 'message', and 'stackTrace'.
-    printError('Error from the analysis server: ${error['message']}');
+    _logger.printError('Error from the analysis server: ${error['message']}');
     if (error['stackTrace'] != null) {
-      printError(error['stackTrace']);
+      _logger.printError(error['stackTrace'] as String);
     }
     _didServerErrorOccur = true;
   }
 
   void _handleAnalysisIssues(Map<String, dynamic> issueInfo) {
     // {"event":"analysis.errors","params":{"file":"/Users/.../lib/main.dart","errors":[]}}
-    final String file = issueInfo['file'];
-    final List<dynamic> errorsList = issueInfo['errors'];
+    final String file = issueInfo['file'] as String;
+    final List<dynamic> errorsList = issueInfo['errors'] as List<dynamic>;
     final List<AnalysisError> errors = errorsList
-        .map<Map<String, dynamic>>(castStringKeyedMap)
-        .map<AnalysisError>((Map<String, dynamic> json) => AnalysisError(json))
+        .map<Map<String, dynamic>>((dynamic e) => castStringKeyedMap(e) ?? <String, dynamic>{})
+        .map<AnalysisError>((Map<String, dynamic> json) {
+          return AnalysisError(WrittenError.fromJson(json),
+            fileSystem: _fileSystem,
+            platform: _platform,
+            terminal: _terminal,
+          );
+        })
         .toList();
     if (!_errorsController.isClosed) {
       _errorsController.add(FileAnalysisErrors(file, errors));
     }
   }
 
-  Future<bool> dispose() async {
+  Future<bool?> dispose() async {
     await _analyzingController.close();
     await _errorsController.close();
     return _process?.kill();
   }
 }
 
-enum _AnalysisSeverity {
+enum AnalysisSeverity {
   error,
   warning,
   info,
   none,
 }
 
+/// [AnalysisError] with command line style.
 class AnalysisError implements Comparable<AnalysisError> {
-  AnalysisError(this.json);
+  AnalysisError(
+    this.writtenError, {
+    required Platform platform,
+    required Terminal terminal,
+    required FileSystem fileSystem,
+  }) : _platform = platform,
+       _terminal = terminal,
+       _fileSystem = fileSystem;
 
-  static final Map<String, _AnalysisSeverity> _severityMap = <String, _AnalysisSeverity>{
-    'INFO': _AnalysisSeverity.info,
-    'WARNING': _AnalysisSeverity.warning,
-    'ERROR': _AnalysisSeverity.error,
-  };
+  final WrittenError writtenError;
+  final Platform _platform;
+  final Terminal _terminal;
+  final FileSystem _fileSystem;
 
-  static final String _separator = platform.isWindows ? '-' : '•';
+  String get _separator => _platform.isWindows ? '-' : '•';
 
-  // "severity":"INFO","type":"TODO","location":{
-  //   "file":"/Users/.../lib/test.dart","offset":362,"length":72,"startLine":15,"startColumn":4
-  // },"message":"...","hasFix":false}
-  Map<String, dynamic> json;
-
-  String get severity => json['severity'];
   String get colorSeverity {
-    switch(_severityLevel) {
-      case _AnalysisSeverity.error:
-        return terminal.color(severity, TerminalColor.red);
-      case _AnalysisSeverity.warning:
-        return terminal.color(severity, TerminalColor.yellow);
-      case _AnalysisSeverity.info:
-      case _AnalysisSeverity.none:
-        return severity;
-    }
-    return null;
-  }
-  _AnalysisSeverity get _severityLevel => _severityMap[severity] ?? _AnalysisSeverity.none;
-  String get type => json['type'];
-  String get message => json['message'];
-  String get code => json['code'];
-
-  String get file => json['location']['file'];
-  int get startLine => json['location']['startLine'];
-  int get startColumn => json['location']['startColumn'];
-  int get offset => json['location']['offset'];
-
-  String get messageSentenceFragment {
-    if (message.endsWith('.')) {
-      return message.substring(0, message.length - 1);
-    } else {
-      return message;
+    switch (writtenError.severityLevel) {
+      case AnalysisSeverity.error:
+        return _terminal.color(writtenError.severity, TerminalColor.red);
+      case AnalysisSeverity.warning:
+        return _terminal.color(writtenError.severity, TerminalColor.yellow);
+      case AnalysisSeverity.info:
+      case AnalysisSeverity.none:
+        return writtenError.severity;
     }
   }
+
+  String get type => writtenError.type;
+  String get code => writtenError.code;
 
   @override
   int compareTo(AnalysisError other) {
     // Sort in order of file path, error location, severity, and message.
-    if (file != other.file) {
-      return file.compareTo(other.file);
+    if (writtenError.file != other.writtenError.file) {
+      return writtenError.file.compareTo(other.writtenError.file);
     }
 
-    if (offset != other.offset) {
-      return offset - other.offset;
+    if (writtenError.offset != other.writtenError.offset) {
+      return writtenError.offset - other.writtenError.offset;
     }
 
-    final int diff = other._severityLevel.index - _severityLevel.index;
+    final int diff = other.writtenError.severityLevel.index -
+        writtenError.severityLevel.index;
     if (diff != 0) {
       return diff;
     }
 
-    return message.compareTo(other.message);
+    return writtenError.message.compareTo(other.writtenError.message);
   }
 
   @override
   String toString() {
     // Can't use "padLeft" because of ANSI color sequences in the colorized
     // severity.
-    final String padding = ' ' * math.max(0, 7 - severity.length);
+    final String padding = ' ' * math.max(0, 7 - writtenError.severity.length);
     return '$padding${colorSeverity.toLowerCase()} $_separator '
-        '$messageSentenceFragment $_separator '
-        '${fs.path.relative(file)}:$startLine:$startColumn $_separator '
+        '${writtenError.messageSentenceFragment} $_separator '
+        '${_fileSystem.path.relative(writtenError.file)}:${writtenError.startLine}:${writtenError.startColumn} $_separator '
         '$code';
   }
 
   String toLegacyString() {
+    return writtenError.toString();
+  }
+}
+
+/// [AnalysisError] in plain text content.
+class WrittenError {
+  WrittenError._({
+    required this.severity,
+    required this.type,
+    required this.message,
+    required this.code,
+    required this.file,
+    required this.startLine,
+    required this.startColumn,
+    required this.offset,
+  });
+
+  ///  {
+  ///      "severity":"INFO",
+  ///      "type":"TODO",
+  ///      "location":{
+  ///          "file":"/Users/.../lib/test.dart",
+  ///          "offset":362,
+  ///          "length":72,
+  ///          "startLine":15,
+  ///         "startColumn":4
+  ///      },
+  ///      "message":"...",
+  ///      "hasFix":false
+  ///  }
+  static WrittenError fromJson(Map<String, dynamic> json) {
+    return WrittenError._(
+      severity: json['severity'] as String,
+      type: json['type'] as String,
+      message: json['message'] as String,
+      code: json['code'] as String,
+      file: json['location']['file'] as String,
+      startLine: json['location']['startLine'] as int,
+      startColumn: json['location']['startColumn'] as int,
+      offset: json['location']['offset'] as int,
+    );
+  }
+
+  final String severity;
+  final String type;
+  final String message;
+  final String code;
+
+  final String file;
+  final int startLine;
+  final int startColumn;
+  final int offset;
+
+  static final Map<String, AnalysisSeverity> _severityMap = <String, AnalysisSeverity>{
+    'INFO': AnalysisSeverity.info,
+    'WARNING': AnalysisSeverity.warning,
+    'ERROR': AnalysisSeverity.error,
+  };
+
+  AnalysisSeverity get severityLevel =>
+      _severityMap[severity] ?? AnalysisSeverity.none;
+
+  String get messageSentenceFragment {
+    if (message.endsWith('.')) {
+      return message.substring(0, message.length - 1);
+    }
+    return message;
+  }
+
+  @override
+  String toString() {
     return '[${severity.toLowerCase()}] $messageSentenceFragment ($file:$startLine:$startColumn)';
   }
 }

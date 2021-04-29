@@ -1,8 +1,7 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 import 'basic.dart';
@@ -30,8 +29,8 @@ class _ActiveItem implements Comparable<_ActiveItem> {
     : controller = null,
       removedItemBuilder = null;
 
-  final AnimationController controller;
-  final AnimatedListRemovedItemBuilder removedItemBuilder;
+  final AnimationController? controller;
+  final AnimatedListRemovedItemBuilder? removedItemBuilder;
   int itemIndex;
 
   @override
@@ -48,7 +47,7 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 ///
 /// {@youtube 560 315 https://www.youtube.com/watch?v=ZtfItHwFlZ8}
 ///
-/// {@tool snippet --template=freeform}
+/// {@tool dartpad --template=freeform}
 /// This sample application uses an [AnimatedList] to create an effect when
 /// items are removed or added to the list.
 ///
@@ -58,16 +57,22 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 /// ```
 ///
 /// ```dart
+/// void main() {
+///   runApp(const AnimatedListSample());
+/// }
+///
 /// class AnimatedListSample extends StatefulWidget {
+///   const AnimatedListSample({Key? key}) : super(key: key);
+///
 ///   @override
 ///   _AnimatedListSampleState createState() => _AnimatedListSampleState();
 /// }
 ///
 /// class _AnimatedListSampleState extends State<AnimatedListSample> {
 ///   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-///   ListModel<int> _list;
-///   int _selectedItem;
-///   int _nextItem; // The next item inserted when the user presses the '+' button.
+///   late ListModel<int> _list;
+///   int? _selectedItem;
+///   late int _nextItem; // The next item inserted when the user presses the '+' button.
 ///
 ///   @override
 ///   void initState() {
@@ -111,14 +116,14 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 ///
 ///   // Insert the "next item" into the list model.
 ///   void _insert() {
-///     final int index = _selectedItem == null ? _list.length : _list.indexOf(_selectedItem);
+///     final int index = _selectedItem == null ? _list.length : _list.indexOf(_selectedItem!);
 ///     _list.insert(index, _nextItem++);
 ///   }
 ///
 ///   // Remove the selected item from the list model.
 ///   void _remove() {
 ///     if (_selectedItem != null) {
-///       _list.removeAt(_list.indexOf(_selectedItem));
+///       _list.removeAt(_list.indexOf(_selectedItem!));
 ///       setState(() {
 ///         _selectedItem = null;
 ///       });
@@ -157,6 +162,8 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 ///   }
 /// }
 ///
+/// typedef RemovedItemBuilder = Widget Function(int item, BuildContext context, Animation<double> animation);
+///
 /// /// Keeps a Dart [List] in sync with an [AnimatedList].
 /// ///
 /// /// The [insert] and [removeAt] methods apply to both the internal list and
@@ -168,30 +175,30 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 /// /// of [AnimatedListState.insertItem] and [AnimatedList.removeItem].
 /// class ListModel<E> {
 ///   ListModel({
-///     @required this.listKey,
-///     @required this.removedItemBuilder,
-///     Iterable<E> initialItems,
-///   }) : assert(listKey != null),
-///       assert(removedItemBuilder != null),
-///       _items = List<E>.from(initialItems ?? <E>[]);
+///     required this.listKey,
+///     required this.removedItemBuilder,
+///     Iterable<E>? initialItems,
+///   }) : _items = List<E>.from(initialItems ?? <E>[]);
 ///
 ///   final GlobalKey<AnimatedListState> listKey;
-///   final dynamic removedItemBuilder;
+///   final RemovedItemBuilder removedItemBuilder;
 ///   final List<E> _items;
 ///
-///   AnimatedListState get _animatedList => listKey.currentState;
+///   AnimatedListState? get _animatedList => listKey.currentState;
 ///
 ///   void insert(int index, E item) {
 ///     _items.insert(index, item);
-///     _animatedList.insertItem(index);
+///     _animatedList!.insertItem(index);
 ///   }
 ///
 ///   E removeAt(int index) {
 ///     final E removedItem = _items.removeAt(index);
 ///     if (removedItem != null) {
-///       _animatedList.removeItem(
+///       _animatedList!.removeItem(
 ///         index,
-///           (BuildContext context, Animation<double> animation) => removedItemBuilder(removedItem, context, animation),
+///         (BuildContext context, Animation<double> animation) {
+///           return removedItemBuilder(index, context, animation);
+///         },
 ///       );
 ///     }
 ///     return removedItem;
@@ -212,24 +219,22 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 /// /// varies from 0 to 128 as the animation varies from 0.0 to 1.0.
 /// class CardItem extends StatelessWidget {
 ///   const CardItem({
-///     Key key,
-///     @required this.animation,
+///     Key? key,
 ///     this.onTap,
-///     @required this.item,
-///     this.selected: false
-///   }) : assert(animation != null),
-///        assert(item != null && item >= 0),
-///        assert(selected != null),
+///     this.selected = false,
+///     required this.animation,
+///     required this.item,
+///   }) : assert(item >= 0),
 ///        super(key: key);
 ///
 ///   final Animation<double> animation;
-///   final VoidCallback onTap;
+///   final VoidCallback? onTap;
 ///   final int item;
 ///   final bool selected;
 ///
 ///   @override
 ///   Widget build(BuildContext context) {
-///     TextStyle textStyle = Theme.of(context).textTheme.display1;
+///     TextStyle textStyle = Theme.of(context).textTheme.headline4!;
 ///     if (selected)
 ///       textStyle = textStyle.copyWith(color: Colors.lightGreenAccent[400]);
 ///     return Padding(
@@ -241,7 +246,7 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 ///           behavior: HitTestBehavior.opaque,
 ///           onTap: onTap,
 ///           child: SizedBox(
-///             height: 128.0,
+///             height: 80.0,
 ///             child: Card(
 ///               color: Colors.primaries[item % Colors.primaries.length],
 ///               child: Center(
@@ -254,23 +259,19 @@ class _ActiveItem implements Comparable<_ActiveItem> {
 ///     );
 ///   }
 /// }
-///
-/// void main() {
-///   runApp(AnimatedListSample());
-/// }
 /// ```
 /// {@end-tool}
 ///
 /// See also:
 ///
-/// * [SliverAnimatedList], a sliver that animates items when they are inserted
-///   or removed from a list.
+///  * [SliverAnimatedList], a sliver that animates items when they are inserted
+///    or removed from a list.
 class AnimatedList extends StatefulWidget {
   /// Creates a scrolling container that animates items when they are inserted
   /// or removed.
   const AnimatedList({
-    Key key,
-    @required this.itemBuilder,
+    Key? key,
+    required this.itemBuilder,
     this.initialItemCount = 0,
     this.scrollDirection = Axis.vertical,
     this.reverse = false,
@@ -279,6 +280,7 @@ class AnimatedList extends StatefulWidget {
     this.physics,
     this.shrinkWrap = false,
     this.padding,
+    this.clipBehavior = Clip.hardEdge,
   }) : assert(itemBuilder != null),
        assert(initialItemCount != null && initialItemCount >= 0),
        super(key: key);
@@ -337,7 +339,7 @@ class AnimatedList extends StatefulWidget {
   /// [ScrollController.keepScrollOffset]). It can be used to read the current
   /// scroll position (see [ScrollController.offset]), or change it (see
   /// [ScrollController.animateTo]).
-  final ScrollController controller;
+  final ScrollController? controller;
 
   /// Whether this is the primary scroll view associated with the parent
   /// [PrimaryScrollController].
@@ -347,7 +349,7 @@ class AnimatedList extends StatefulWidget {
   ///
   /// Defaults to true when [scrollDirection] is [Axis.vertical] and
   /// [controller] is null.
-  final bool primary;
+  final bool? primary;
 
   /// How the scroll view should respond to user input.
   ///
@@ -355,7 +357,7 @@ class AnimatedList extends StatefulWidget {
   /// user stops dragging the scroll view.
   ///
   /// Defaults to matching platform conventions.
-  final ScrollPhysics physics;
+  final ScrollPhysics? physics;
 
   /// Whether the extent of the scroll view in the [scrollDirection] should be
   /// determined by the contents being viewed.
@@ -374,7 +376,12 @@ class AnimatedList extends StatefulWidget {
   final bool shrinkWrap;
 
   /// The amount of space by which to inset the children.
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? padding;
+
+  /// {@macro flutter.material.Material.clipBehavior}
+  ///
+  /// Defaults to [Clip.hardEdge].
+  final Clip clipBehavior;
 
   /// The state from the closest instance of this class that encloses the given
   /// context.
@@ -382,25 +389,53 @@ class AnimatedList extends StatefulWidget {
   /// This method is typically used by [AnimatedList] item widgets that insert
   /// or remove items in response to user input.
   ///
-  /// ```dart
-  /// AnimatedListState animatedList = AnimatedList.of(context);
-  /// ```
-  static AnimatedListState of(BuildContext context, { bool nullOk = false }) {
+  /// If no [AnimatedList] surrounds the context given, then this function will
+  /// assert in debug mode and throw an exception in release mode.
+  ///
+  /// See also:
+  ///
+  ///  * [maybeOf], a similar function that will return null if no
+  ///    [AnimatedList] ancestor is found.
+  static AnimatedListState of(BuildContext context) {
     assert(context != null);
-    assert(nullOk != null);
-    final AnimatedListState result = context.ancestorStateOfType(const TypeMatcher<AnimatedListState>());
-    if (nullOk || result != null)
-      return result;
-    throw FlutterError(
-      'AnimatedList.of() called with a context that does not contain an AnimatedList.\n'
-      'No AnimatedList ancestor could be found starting from the context that '
-      'was passed to AnimatedList.of(). This can happen when the context '
-      'provided is from the same StatefulWidget that built the AnimatedList. '
-      'Please see the AnimatedList documentation for examples of how to refer to '
-      'an AnimatedListState object: https://api.flutter.dev/flutter/widgets/AnimatedListState-class.html \n'
-      'The context used was:\n'
-      '  $context'
-    );
+    final AnimatedListState? result = context.findAncestorStateOfType<AnimatedListState>();
+    assert((){
+      if (result == null) {
+        throw FlutterError.fromParts(<DiagnosticsNode>[
+          ErrorSummary('AnimatedList.of() called with a context that does not contain an AnimatedList.'),
+          ErrorDescription(
+            'No AnimatedList ancestor could be found starting from the context that was passed to AnimatedList.of().',
+          ),
+          ErrorHint(
+            'This can happen when the context provided is from the same StatefulWidget that '
+            'built the AnimatedList. Please see the AnimatedList documentation for examples '
+            'of how to refer to an AnimatedListState object:\n'
+            '  https://api.flutter.dev/flutter/widgets/AnimatedListState-class.html',
+          ),
+          context.describeElement('The context used was'),
+        ]);
+      }
+      return true;
+    }());
+    return result!;
+  }
+
+  /// The state from the closest instance of this class that encloses the given
+  /// context.
+  ///
+  /// This method is typically used by [AnimatedList] item widgets that insert
+  /// or remove items in response to user input.
+  ///
+  /// If no [AnimatedList] surrounds the context given, then this function will
+  /// return null.
+  ///
+  /// See also:
+  ///
+  ///  * [of], a similar function that will throw if no [AnimatedList] ancestor
+  ///    is found.
+  static AnimatedListState? maybeOf(BuildContext context) {
+    assert(context != null);
+    return context.findAncestorStateOfType<AnimatedListState>();
   }
 
   @override
@@ -441,7 +476,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
   /// it increases the length of the list by one and shifts all items at or
   /// after [index] towards the end of the list.
   void insertItem(int index, { Duration duration = _kDuration }) {
-    _sliverAnimatedListKey.currentState.insertItem(index, duration: duration);
+    _sliverAnimatedListKey.currentState!.insertItem(index, duration: duration);
   }
 
   /// Remove the item at [index] and start an animation that will be passed
@@ -456,7 +491,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
   /// it decreases the length of the list by one and shifts all items at or
   /// before [index] towards the beginning of the list.
   void removeItem(int index, AnimatedListRemovedItemBuilder builder, { Duration duration = _kDuration }) {
-    _sliverAnimatedListKey.currentState.removeItem(index, builder, duration: duration);
+    _sliverAnimatedListKey.currentState!.removeItem(index, builder, duration: duration);
   }
 
   @override
@@ -468,9 +503,10 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
       primary: widget.primary,
       physics: widget.physics,
       shrinkWrap: widget.shrinkWrap,
+      clipBehavior: widget.clipBehavior,
       slivers: <Widget>[
         SliverPadding(
-          padding: widget.padding ?? const EdgeInsets.all(0),
+          padding: widget.padding ?? EdgeInsets.zero,
           sliver: SliverAnimatedList(
             key: _sliverAnimatedListKey,
             itemBuilder: widget.itemBuilder,
@@ -489,7 +525,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 /// [GlobalKey] or use the static [SliverAnimatedList.of] method from an item's
 /// input callback.
 ///
-/// {@tool snippet --template=freeform}
+/// {@tool dartpad --template=freeform}
 /// This sample application uses a [SliverAnimatedList] to create an animated
 /// effect when items are removed or added to the list.
 ///
@@ -499,9 +535,11 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 /// ```
 ///
 /// ```dart
-/// void main() => runApp(SliverAnimatedListSample());
+/// void main() => runApp(const SliverAnimatedListSample());
 ///
 /// class SliverAnimatedListSample extends StatefulWidget {
+///   const SliverAnimatedListSample({Key? key}) : super(key: key);
+///
 ///   @override
 ///   _SliverAnimatedListSampleState createState() => _SliverAnimatedListSampleState();
 /// }
@@ -509,9 +547,10 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 /// class _SliverAnimatedListSampleState extends State<SliverAnimatedListSample> {
 ///   final GlobalKey<SliverAnimatedListState> _listKey = GlobalKey<SliverAnimatedListState>();
 ///   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-///   ListModel<int> _list;
-///   int _selectedItem;
-///   int _nextItem; // The next item inserted when the user presses the '+' button.
+///   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+///   late ListModel<int> _list;
+///   int? _selectedItem;
+///   late int _nextItem; // The next item inserted when the user presses the '+' button.
 ///
 ///   @override
 ///   void initState() {
@@ -554,19 +593,19 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///
 ///   // Insert the "next item" into the list model.
 ///   void _insert() {
-///     final int index = _selectedItem == null ? _list.length : _list.indexOf(_selectedItem);
+///     final int index = _selectedItem == null ? _list.length : _list.indexOf(_selectedItem!);
 ///     _list.insert(index, _nextItem++);
 ///   }
 ///
 ///   // Remove the selected item from the list model.
 ///   void _remove() {
 ///     if (_selectedItem != null) {
-///       _list.removeAt(_list.indexOf(_selectedItem));
+///       _list.removeAt(_list.indexOf(_selectedItem!));
 ///       setState(() {
 ///         _selectedItem = null;
 ///       });
 ///     } else {
-///       _scaffoldKey.currentState.showSnackBar(SnackBar(
+///       _scaffoldMessengerKey.currentState!.showSnackBar(const SnackBar(
 ///         content: Text(
 ///           'Select an item to remove from the list.',
 ///           style: TextStyle(fontSize: 20),
@@ -578,30 +617,31 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///   @override
 ///   Widget build(BuildContext context) {
 ///     return MaterialApp(
+///       scaffoldMessengerKey: _scaffoldMessengerKey,
 ///       home: Scaffold(
 ///         key: _scaffoldKey,
 ///         body: CustomScrollView(
 ///           slivers: <Widget>[
 ///             SliverAppBar(
-///               title: Text(
+///               title: const Text(
 ///                 'SliverAnimatedList',
 ///                 style: TextStyle(fontSize: 30),
 ///               ),
-///               expandedHeight: 100,
+///               expandedHeight: 60,
 ///               centerTitle: true,
 ///               backgroundColor: Colors.amber[900],
 ///               leading: IconButton(
 ///                 icon: const Icon(Icons.add_circle),
 ///                 onPressed: _insert,
 ///                 tooltip: 'Insert a new item.',
-///                 iconSize: 48,
+///                 iconSize: 32,
 ///               ),
-///               actions: [
+///               actions: <Widget>[
 ///                 IconButton(
 ///                   icon: const Icon(Icons.remove_circle),
 ///                   onPressed: _remove,
 ///                   tooltip: 'Remove the selected item.',
-///                   iconSize: 48,
+///                   iconSize: 32,
 ///                 ),
 ///               ],
 ///             ),
@@ -617,6 +657,8 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///   }
 /// }
 ///
+/// typedef RemovedItemBuilder = Widget Function(int item, BuildContext context, Animation<double> animation);
+///
 /// // Keeps a Dart [List] in sync with an [AnimatedList].
 /// //
 /// // The [insert] and [removeAt] methods apply to both the internal list and
@@ -628,18 +670,16 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 /// // of [AnimatedListState.insertItem] and [AnimatedList.removeItem].
 /// class ListModel<E> {
 ///   ListModel({
-///     @required this.listKey,
-///     @required this.removedItemBuilder,
-///     Iterable<E> initialItems,
-///   }) : assert(listKey != null),
-///        assert(removedItemBuilder != null),
-///        _items = List<E>.from(initialItems ?? <E>[]);
+///     required this.listKey,
+///     required this.removedItemBuilder,
+///     Iterable<E>? initialItems,
+///   }) : _items = List<E>.from(initialItems ?? <E>[]);
 ///
 ///   final GlobalKey<SliverAnimatedListState> listKey;
-///   final dynamic removedItemBuilder;
+///   final RemovedItemBuilder removedItemBuilder;
 ///   final List<E> _items;
 ///
-///   SliverAnimatedListState get _animatedList => listKey.currentState;
+///   SliverAnimatedListState get _animatedList => listKey.currentState!;
 ///
 ///   void insert(int index, E item) {
 ///     _items.insert(index, item);
@@ -651,7 +691,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///     if (removedItem != null) {
 ///       _animatedList.removeItem(
 ///         index,
-///         (BuildContext context, Animation<double> animation) => removedItemBuilder(removedItem, context, animation),
+///         (BuildContext context, Animation<double> animation) => removedItemBuilder(index, context, animation),
 ///       );
 ///     }
 ///     return removedItem;
@@ -672,18 +712,16 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 /// // transitions from 0.0 to 1.0.
 /// class CardItem extends StatelessWidget {
 ///   const CardItem({
-///     Key key,
-///     @required this.animation,
-///     @required this.item,
+///     Key? key,
 ///     this.onTap,
 ///     this.selected = false,
-///   }) : assert(animation != null),
-///        assert(item != null && item >= 0),
-///        assert(selected != null),
+///     required this.animation,
+///     required this.item,
+///   }) : assert(item >= 0),
 ///        super(key: key);
 ///
 ///   final Animation<double> animation;
-///   final VoidCallback onTap;
+///   final VoidCallback? onTap;
 ///   final int item;
 ///   final bool selected;
 ///
@@ -703,7 +741,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///         child: GestureDetector(
 ///           onTap: onTap,
 ///           child: SizedBox(
-///             height: 120.0,
+///             height: 80.0,
 ///             child: Card(
 ///               color: selected
 ///                 ? Colors.black12
@@ -711,7 +749,7 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///               child: Center(
 ///                 child: Text(
 ///                   'Item $item',
-///                   style: Theme.of(context).textTheme.display1,
+///                   style: Theme.of(context).textTheme.headline4,
 ///                 ),
 ///               ),
 ///             ),
@@ -726,15 +764,15 @@ class AnimatedListState extends State<AnimatedList> with TickerProviderStateMixi
 ///
 /// See also:
 ///
-/// * [SliverList], which does not animate items when they are inserted or
-///   removed.
-/// * [AnimatedList], a non-sliver scrolling container that animates items when
-///   they are inserted or removed.
+///  * [SliverList], which does not animate items when they are inserted or
+///    removed.
+///  * [AnimatedList], a non-sliver scrolling container that animates items when
+///    they are inserted or removed.
 class SliverAnimatedList extends StatefulWidget {
   /// Creates a sliver that animates items when they are inserted or removed.
   const SliverAnimatedList({
-    Key key,
-    @required this.itemBuilder,
+    Key? key,
+    required this.itemBuilder,
     this.initialItemCount = 0,
   }) : assert(itemBuilder != null),
        assert(initialItemCount != null && initialItemCount >= 0),
@@ -767,25 +805,51 @@ class SliverAnimatedList extends StatefulWidget {
   /// This method is typically used by [SliverAnimatedList] item widgets that
   /// insert or remove items in response to user input.
   ///
-  /// ```dart
-  /// SliverAnimatedListState animatedList = SliverAnimatedList.of(context);
-  /// ```
-  static SliverAnimatedListState of(BuildContext context, {bool nullOk = false}) {
+  /// If no [SliverAnimatedList] surrounds the context given, then this function
+  /// will assert in debug mode and throw an exception in release mode.
+  ///
+  /// See also:
+  ///
+  ///  * [maybeOf], a similar function that will return null if no
+  ///    [SliverAnimatedList] ancestor is found.
+  static SliverAnimatedListState of(BuildContext context) {
     assert(context != null);
-    assert(nullOk != null);
-    final SliverAnimatedListState result = context.ancestorStateOfType(const TypeMatcher<SliverAnimatedListState>());
-    if (nullOk || result != null)
-      return result;
-    throw FlutterError(
-        'SliverAnimatedList.of() called with a context that does not contain a SliverAnimatedList.\n'
-        'No SliverAnimatedListState ancestor could be found starting from the '
-        'context that was passed to SliverAnimatedListState.of(). This can '
-        'happen when the context provided is from the same StatefulWidget that '
-        'built the AnimatedList. Please see the SliverAnimatedList documentation '
-        'for examples of how to refer to an AnimatedListState object: '
-        'https://docs.flutter.io/flutter/widgets/SliverAnimatedListState-class.html \n'
-        'The context used was:\n'
-        '  $context');
+    final SliverAnimatedListState? result = context.findAncestorStateOfType<SliverAnimatedListState>();
+    assert((){
+      if (result == null) {
+        throw FlutterError(
+          'SliverAnimatedList.of() called with a context that does not contain a SliverAnimatedList.\n'
+          'No SliverAnimatedListState ancestor could be found starting from the '
+          'context that was passed to SliverAnimatedListState.of(). This can '
+          'happen when the context provided is from the same StatefulWidget that '
+          'built the AnimatedList. Please see the SliverAnimatedList documentation '
+          'for examples of how to refer to an AnimatedListState object: '
+          'https://api.flutter.dev/flutter/widgets/SliverAnimatedListState-class.html\n'
+          'The context used was:\n'
+          '  $context',
+        );
+      }
+      return true;
+    }());
+    return result!;
+  }
+
+  /// The state from the closest instance of this class that encloses the given
+  /// context.
+  ///
+  /// This method is typically used by [SliverAnimatedList] item widgets that
+  /// insert or remove items in response to user input.
+  ///
+  /// If no [SliverAnimatedList] surrounds the context given, then this function
+  /// will return null.
+  ///
+  /// See also:
+  ///
+  ///  * [of], a similar function that will throw if no [SliverAnimatedList]
+  ///    ancestor is found.
+  static SliverAnimatedListState? maybeOf(BuildContext context) {
+    assert(context != null);
+    return context.findAncestorStateOfType<SliverAnimatedListState>();
   }
 }
 
@@ -827,18 +891,18 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
 
   @override
   void dispose() {
-    for (_ActiveItem item in _incomingItems.followedBy(_outgoingItems)) {
-      item.controller.dispose();
+    for (final _ActiveItem item in _incomingItems.followedBy(_outgoingItems)) {
+      item.controller!.dispose();
     }
     super.dispose();
   }
 
-  _ActiveItem _removeActiveItemAt(List<_ActiveItem> items, int itemIndex) {
+  _ActiveItem? _removeActiveItemAt(List<_ActiveItem> items, int itemIndex) {
     final int i = binarySearch(items, _ActiveItem.index(itemIndex));
     return i == -1 ? null : items.removeAt(i);
   }
 
-  _ActiveItem _activeItemAt(List<_ActiveItem> items, int itemIndex) {
+  _ActiveItem? _activeItemAt(List<_ActiveItem> items, int itemIndex) {
     final int i = binarySearch(items, _ActiveItem.index(itemIndex));
     return i == -1 ? null : items[i];
   }
@@ -851,7 +915,7 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
 
   int _indexToItemIndex(int index) {
     int itemIndex = index;
-    for (_ActiveItem item in _outgoingItems) {
+    for (final _ActiveItem item in _outgoingItems) {
       if (item.itemIndex <= itemIndex)
         itemIndex += 1;
       else
@@ -862,7 +926,7 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
 
   int _itemIndexToIndex(int itemIndex) {
     int index = itemIndex;
-    for (_ActiveItem item in _outgoingItems) {
+    for (final _ActiveItem item in _outgoingItems) {
       assert(item.itemIndex != itemIndex);
       if (item.itemIndex < itemIndex)
         index -= 1;
@@ -891,11 +955,11 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
 
     // Increment the incoming and outgoing item indices to account
     // for the insertion.
-    for (_ActiveItem item in _incomingItems) {
+    for (final _ActiveItem item in _incomingItems) {
       if (item.itemIndex >= itemIndex)
         item.itemIndex += 1;
     }
-    for (_ActiveItem item in _outgoingItems) {
+    for (final _ActiveItem item in _outgoingItems) {
       if (item.itemIndex >= itemIndex)
         item.itemIndex += 1;
     }
@@ -916,7 +980,7 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
     });
 
     controller.forward().then<void>((_) {
-      _removeActiveItemAt(_incomingItems, incomingItem.itemIndex).controller.dispose();
+      _removeActiveItemAt(_incomingItems, incomingItem.itemIndex)!.controller!.dispose();
     });
   }
 
@@ -940,7 +1004,7 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
     assert(itemIndex >= 0 && itemIndex < _itemsCount);
     assert(_activeItemAt(_outgoingItems, itemIndex) == null);
 
-    final _ActiveItem incomingItem = _removeActiveItemAt(_incomingItems, itemIndex);
+    final _ActiveItem? incomingItem = _removeActiveItemAt(_incomingItems, itemIndex);
     final AnimationController controller = incomingItem?.controller
       ?? AnimationController(duration: duration, value: 1.0, vsync: this);
     final _ActiveItem outgoingItem = _ActiveItem.outgoing(controller, itemIndex, builder);
@@ -951,15 +1015,15 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
     });
 
     controller.reverse().then<void>((void value) {
-      _removeActiveItemAt(_outgoingItems, outgoingItem.itemIndex).controller.dispose();
+      _removeActiveItemAt(_outgoingItems, outgoingItem.itemIndex)!.controller!.dispose();
 
       // Decrement the incoming and outgoing item indices to account
       // for the removal.
-      for (_ActiveItem item in _incomingItems) {
+      for (final _ActiveItem item in _incomingItems) {
         if (item.itemIndex > outgoingItem.itemIndex)
           item.itemIndex -= 1;
       }
-      for (_ActiveItem item in _outgoingItems) {
+      for (final _ActiveItem item in _outgoingItems) {
         if (item.itemIndex > outgoingItem.itemIndex)
           item.itemIndex -= 1;
       }
@@ -969,15 +1033,15 @@ class SliverAnimatedListState extends State<SliverAnimatedList> with TickerProvi
   }
 
   Widget _itemBuilder(BuildContext context, int itemIndex) {
-    final _ActiveItem outgoingItem = _activeItemAt(_outgoingItems, itemIndex);
+    final _ActiveItem? outgoingItem = _activeItemAt(_outgoingItems, itemIndex);
     if (outgoingItem != null) {
-      return outgoingItem.removedItemBuilder(
+      return outgoingItem.removedItemBuilder!(
         context,
-        outgoingItem.controller.view,
+        outgoingItem.controller!.view,
       );
     }
 
-    final _ActiveItem incomingItem = _activeItemAt(_incomingItems, itemIndex);
+    final _ActiveItem? incomingItem = _activeItemAt(_incomingItems, itemIndex);
     final Animation<double> animation = incomingItem?.controller?.view ?? kAlwaysCompleteAnimation;
     return widget.itemBuilder(
       context,

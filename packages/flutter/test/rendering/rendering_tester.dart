@@ -1,6 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -12,14 +14,22 @@ import 'package:flutter_test/flutter_test.dart' show EnginePhase, fail;
 export 'package:flutter/foundation.dart' show FlutterError, FlutterErrorDetails;
 export 'package:flutter_test/flutter_test.dart' show EnginePhase;
 
-class TestRenderingFlutterBinding extends BindingBase with ServicesBinding, GestureBinding, SchedulerBinding, PaintingBinding, SemanticsBinding, RendererBinding {
+class TestRenderingFlutterBinding extends BindingBase with SchedulerBinding, ServicesBinding, GestureBinding, PaintingBinding, SemanticsBinding, RendererBinding {
   /// Creates a binding for testing rendering library functionality.
   ///
   /// If [onErrors] is not null, it is called if [FlutterError] caught any errors
   /// while drawing the frame. If [onErrors] is null and [FlutterError] caught at least
   /// one error, this function fails the test. A test may override [onErrors] and
   /// inspect errors using [takeFlutterErrorDetails].
-  TestRenderingFlutterBinding({ this.onErrors });
+  ///
+  /// Errors caught between frames will cause the test to fail unless
+  /// [FlutterError.onError] has been overridden.
+  TestRenderingFlutterBinding({ this.onErrors }) {
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.dumpErrorToConsole(details);
+      Zone.current.parent!.handleUncaughtError(details.exception, details.stack!);
+    };
+  }
 
   final List<FlutterErrorDetails> _errors = <FlutterErrorDetails>[];
 
@@ -28,14 +38,14 @@ class TestRenderingFlutterBinding extends BindingBase with ServicesBinding, Gest
   /// This function is expected to inspect these errors and decide whether they
   /// are expected or not. Use [takeFlutterErrorDetails] to take one error at a
   /// time, or [takeAllFlutterErrorDetails] to iterate over all errors.
-  VoidCallback onErrors;
+  VoidCallback? onErrors;
 
   /// Returns the error least recently caught by [FlutterError] and removes it
   /// from the list of captured errors.
   ///
   /// Returns null if no errors were captures, or if the list was exhausted by
   /// calling this method repeatedly.
-  FlutterErrorDetails takeFlutterErrorDetails() {
+  FlutterErrorDetails? takeFlutterErrorDetails() {
     if (_errors.isEmpty) {
       return null;
     }
@@ -75,7 +85,7 @@ class TestRenderingFlutterBinding extends BindingBase with ServicesBinding, Gest
   @override
   void drawFrame() {
     assert(phase != EnginePhase.build, 'rendering_tester does not support testing the build phase; use flutter_test instead');
-    final FlutterExceptionHandler oldErrorHandler = FlutterError.onError;
+    final FlutterExceptionHandler? oldErrorHandler = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {
       _errors.add(details);
     };
@@ -95,13 +105,12 @@ class TestRenderingFlutterBinding extends BindingBase with ServicesBinding, Gest
       pipelineOwner.flushSemantics();
       if (phase == EnginePhase.flushSemantics)
         return;
-      assert(phase == EnginePhase.flushSemantics ||
-            phase == EnginePhase.sendSemanticsUpdate);
+      assert(phase == EnginePhase.flushSemantics || phase == EnginePhase.sendSemanticsUpdate);
     } finally {
       FlutterError.onError = oldErrorHandler;
       if (_errors.isNotEmpty) {
         if (onErrors != null) {
-          onErrors();
+          onErrors!();
           if (_errors.isNotEmpty) {
             _errors.forEach(FlutterError.dumpErrorToConsole);
             fail('There are more errors than the test inspected using TestRenderingFlutterBinding.takeFlutterErrorDetails.');
@@ -115,11 +124,9 @@ class TestRenderingFlutterBinding extends BindingBase with ServicesBinding, Gest
   }
 }
 
-TestRenderingFlutterBinding _renderer;
-TestRenderingFlutterBinding get renderer {
-  _renderer ??= TestRenderingFlutterBinding();
-  return _renderer;
-}
+late final TestRenderingFlutterBinding _renderer = TestRenderingFlutterBinding();
+TestRenderingFlutterBinding get renderer => _renderer;
+
 
 /// Place the box in the render tree, at the given size and with the given
 /// alignment on the screen.
@@ -137,10 +144,10 @@ TestRenderingFlutterBinding get renderer {
 /// If `onErrors` is not null, it is set as [TestRenderingFlutterBinding.onError].
 void layout(
   RenderBox box, {
-  BoxConstraints constraints,
+  BoxConstraints? constraints,
   Alignment alignment = Alignment.center,
   EnginePhase phase = EnginePhase.layout,
-  VoidCallback onErrors,
+  VoidCallback? onErrors,
 }) {
   assert(box != null); // If you want to just repump the last box, call pumpFrame().
   assert(box.parent == null); // We stick the box in another, so you can't reuse it easily, sorry.
@@ -163,7 +170,7 @@ void layout(
 /// Pumps a single frame.
 ///
 /// If `onErrors` is not null, it is set as [TestRenderingFlutterBinding.onError].
-void pumpFrame({ EnginePhase phase = EnginePhase.layout, VoidCallback onErrors }) {
+void pumpFrame({ EnginePhase phase = EnginePhase.layout, VoidCallback? onErrors }) {
   assert(renderer != null);
   assert(renderer.renderView != null);
   assert(renderer.renderView.child != null); // call layout() first!
@@ -177,7 +184,7 @@ void pumpFrame({ EnginePhase phase = EnginePhase.layout, VoidCallback onErrors }
 }
 
 class TestCallbackPainter extends CustomPainter {
-  const TestCallbackPainter({ this.onPaint });
+  const TestCallbackPainter({ required this.onPaint });
 
   final VoidCallback onPaint;
 
@@ -189,7 +196,6 @@ class TestCallbackPainter extends CustomPainter {
   @override
   bool shouldRepaint(TestCallbackPainter oldPainter) => true;
 }
-
 
 class RenderSizedBox extends RenderBox {
   RenderSizedBox(this._size);
@@ -230,3 +236,88 @@ class RenderSizedBox extends RenderBox {
   @override
   bool hitTestSelf(Offset position) => true;
 }
+
+class FakeTickerProvider implements TickerProvider {
+  @override
+  Ticker createTicker(TickerCallback onTick, [ bool disableAnimations = false ]) {
+    return FakeTicker();
+  }
+}
+
+class FakeTicker implements Ticker {
+  @override
+  bool muted = false;
+
+  @override
+  void absorbTicker(Ticker originalTicker) { }
+
+  @override
+  String? get debugLabel => null;
+
+  @override
+  bool get isActive => throw UnimplementedError();
+
+  @override
+  bool get isTicking => throw UnimplementedError();
+
+  @override
+  bool get scheduled => throw UnimplementedError();
+
+  @override
+  bool get shouldScheduleTick => throw UnimplementedError();
+
+  @override
+  void dispose() { }
+
+  @override
+  void scheduleTick({ bool rescheduling = false }) { }
+
+  @override
+  TickerFuture start() {
+    throw UnimplementedError();
+  }
+
+  @override
+  void stop({ bool canceled = false }) { }
+
+  @override
+  void unscheduleTick() { }
+
+  @override
+  String toString({ bool debugIncludeStack = false }) => super.toString();
+
+  @override
+  DiagnosticsNode describeForError(String name) {
+    return DiagnosticsProperty<Ticker>(name, this, style: DiagnosticsTreeStyle.errorProperty);
+  }
+}
+
+class TestClipPaintingContext extends PaintingContext {
+  TestClipPaintingContext() : super(ContainerLayer(), Rect.zero);
+
+  @override
+  ClipRectLayer? pushClipRect(
+    bool needsCompositing,
+    Offset offset,
+    Rect clipRect,
+    PaintingContextCallback painter, {
+    Clip clipBehavior = Clip.hardEdge,
+    ClipRectLayer? oldLayer,
+  }) {
+    this.clipBehavior = clipBehavior;
+    return null;
+  }
+
+  Clip clipBehavior = Clip.none;
+}
+
+void expectOverflowedErrors() {
+  final FlutterErrorDetails errorDetails = renderer.takeFlutterErrorDetails()!;
+  final bool overflowed = errorDetails.toString().contains('overflowed');
+  if (!overflowed) {
+    FlutterError.reportError(errorDetails);
+  }
+}
+
+RenderConstrainedBox get box200x200 =>
+    RenderConstrainedBox(additionalConstraints: const BoxConstraints.tightFor(height: 200.0, width: 200.0));

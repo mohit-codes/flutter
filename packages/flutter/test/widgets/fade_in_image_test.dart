@@ -1,12 +1,14 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../image_data.dart';
 import '../painting/image_test_utils.dart';
 
 const Duration animationDuration = Duration(milliseconds: 50);
@@ -17,21 +19,21 @@ class FadeInImageParts {
         assert(target != null);
 
   final ComponentElement fadeInImageElement;
-  final FadeInImageElements placeholder;
+  final FadeInImageElements? placeholder;
   final FadeInImageElements target;
 
-  State get state {
-    StatefulElement animatedFadeOutFadeInElement;
+  State? get state {
+    StatefulElement? animatedFadeOutFadeInElement;
     fadeInImageElement.visitChildren((Element child) {
       expect(animatedFadeOutFadeInElement, isNull);
-      animatedFadeOutFadeInElement = child;
+      animatedFadeOutFadeInElement = child as StatefulElement;
     });
     expect(animatedFadeOutFadeInElement, isNotNull);
-    return animatedFadeOutFadeInElement.state;
+    return animatedFadeOutFadeInElement!.state;
   }
 
-  Element get semanticsElement {
-    Element result;
+  Element? get semanticsElement {
+    Element? result;
     fadeInImageElement.visitChildren((Element child) {
       if (child.widget is Semantics)
         result = child;
@@ -44,25 +46,45 @@ class FadeInImageElements {
   const FadeInImageElements(this.rawImageElement, this.fadeTransitionElement);
 
   final Element rawImageElement;
-  final Element fadeTransitionElement;
+  final Element? fadeTransitionElement;
 
-  RawImage get rawImage => rawImageElement.widget;
-  FadeTransition get fadeTransition => fadeTransitionElement?.widget;
-  double get opacity => fadeTransition == null ? 1 : fadeTransition.opacity.value;
+  RawImage get rawImage => rawImageElement.widget as RawImage;
+  FadeTransition? get fadeTransition => fadeTransitionElement?.widget as FadeTransition?;
+  double get opacity => fadeTransition == null ? 1 : fadeTransition!.opacity.value;
+}
+
+class LoadTestImageProvider extends ImageProvider<Object> {
+  LoadTestImageProvider(this.provider);
+
+  final ImageProvider provider;
+
+  ImageStreamCompleter testLoad(Object key, DecoderCallback decode) {
+    return provider.load(key, decode);
+  }
+
+  @override
+  Future<Object> obtainKey(ImageConfiguration configuration) {
+    throw UnimplementedError();
+  }
+
+  @override
+  ImageStreamCompleter load(Object key, DecoderCallback decode) {
+    throw UnimplementedError();
+  }
 }
 
 FadeInImageParts findFadeInImage(WidgetTester tester) {
   final List<FadeInImageElements> elements = <FadeInImageElements>[];
   final Iterable<Element> rawImageElements = tester.elementList(find.byType(RawImage));
-  ComponentElement fadeInImageElement;
-  for (Element rawImageElement in rawImageElements) {
-    Element fadeTransitionElement;
+  ComponentElement? fadeInImageElement;
+  for (final Element rawImageElement in rawImageElements) {
+    Element? fadeTransitionElement;
     rawImageElement.visitAncestorElements((Element ancestor) {
       if (ancestor.widget is FadeTransition) {
         fadeTransitionElement = ancestor;
       } else if (ancestor.widget is FadeInImage) {
         if (fadeInImageElement == null) {
-          fadeInImageElement = ancestor;
+          fadeInImageElement = ancestor as ComponentElement;
         } else {
           expect(fadeInImageElement, same(ancestor));
         }
@@ -74,10 +96,10 @@ FadeInImageParts findFadeInImage(WidgetTester tester) {
     elements.add(FadeInImageElements(rawImageElement, fadeTransitionElement));
   }
   if (elements.length == 2) {
-    return FadeInImageParts(fadeInImageElement, elements.last, elements.first);
+    return FadeInImageParts(fadeInImageElement!, elements.last, elements.first);
   } else {
     expect(elements, hasLength(1));
-    return FadeInImageParts(fadeInImageElement, null, elements.first);
+    return FadeInImageParts(fadeInImageElement!, null, elements.first);
   }
 }
 
@@ -102,30 +124,30 @@ Future<void> main() async {
         excludeFromSemantics: true,
       ));
 
-      expect(findFadeInImage(tester).placeholder.rawImage.image, null);
+      expect(findFadeInImage(tester).placeholder!.rawImage.image, null);
       expect(findFadeInImage(tester).target.rawImage.image, null);
 
       placeholderProvider.complete();
       await tester.pump();
-      expect(findFadeInImage(tester).placeholder.rawImage.image, same(placeholderImage));
+      expect(findFadeInImage(tester).placeholder!.rawImage.image!.isCloneOf(placeholderImage), true);
       expect(findFadeInImage(tester).target.rawImage.image, null);
 
       imageProvider.complete();
       await tester.pump();
       for (int i = 0; i < 5; i += 1) {
         final FadeInImageParts parts = findFadeInImage(tester);
-        expect(parts.placeholder.rawImage.image, same(placeholderImage));
-        expect(parts.target.rawImage.image, same(targetImage));
-        expect(parts.placeholder.opacity, moreOrLessEquals(1 - i / 5));
+        expect(parts.placeholder!.rawImage.image!.isCloneOf(placeholderImage), true);
+        expect(parts.target.rawImage.image!.isCloneOf(targetImage), true);
+        expect(parts.placeholder!.opacity, moreOrLessEquals(1 - i / 5));
         expect(parts.target.opacity, 0);
         await tester.pump(const Duration(milliseconds: 10));
       }
 
       for (int i = 0; i < 5; i += 1) {
         final FadeInImageParts parts = findFadeInImage(tester);
-        expect(parts.placeholder.rawImage.image, same(placeholderImage));
-        expect(parts.target.rawImage.image, same(targetImage));
-        expect(parts.placeholder.opacity, 0);
+        expect(parts.placeholder!.rawImage.image!.isCloneOf(placeholderImage), true);
+        expect(parts.target.rawImage.image!.isCloneOf(targetImage), true);
+        expect(parts.placeholder!.opacity, 0);
         expect(parts.target.opacity, moreOrLessEquals(i / 5));
         await tester.pump(const Duration(milliseconds: 10));
       }
@@ -134,7 +156,7 @@ Future<void> main() async {
         placeholder: placeholderProvider,
         image: imageProvider,
       ));
-      expect(findFadeInImage(tester).target.rawImage.image, same(targetImage));
+      expect(findFadeInImage(tester).target.rawImage.image!.isCloneOf(targetImage), true);
       expect(findFadeInImage(tester).target.opacity, 1);
     });
 
@@ -149,7 +171,7 @@ Future<void> main() async {
         image: imageProvider,
       ));
 
-      expect(findFadeInImage(tester).target.rawImage.image, same(targetImage));
+      expect(findFadeInImage(tester).target.rawImage.image!.isCloneOf(targetImage), true);
       expect(findFadeInImage(tester).placeholder, isNull);
       expect(findFadeInImage(tester).target.opacity, 1);
     });
@@ -167,10 +189,10 @@ Future<void> main() async {
         excludeFromSemantics: true,
       ));
 
-      final State state = findFadeInImage(tester).state;
+      final State? state = findFadeInImage(tester).state;
       placeholderProvider.complete();
       await tester.pump();
-      expect(findFadeInImage(tester).placeholder.rawImage.image, same(placeholderImage));
+      expect(findFadeInImage(tester).placeholder!.rawImage.image!.isCloneOf(placeholderImage), true);
 
       await tester.pumpWidget(FadeInImage(
         placeholder: secondPlaceholderProvider,
@@ -182,8 +204,30 @@ Future<void> main() async {
 
       secondPlaceholderProvider.complete();
       await tester.pump();
-      expect(findFadeInImage(tester).placeholder.rawImage.image, same(replacementImage));
+      expect(findFadeInImage(tester).placeholder!.rawImage.image!.isCloneOf(replacementImage), true);
       expect(findFadeInImage(tester).state, same(state));
+    });
+
+    testWidgets('does not keep the placeholder in the tree if it is invisible', (WidgetTester tester) async {
+      final TestImageProvider placeholderProvider = TestImageProvider(placeholderImage);
+      final TestImageProvider imageProvider = TestImageProvider(targetImage);
+
+      await tester.pumpWidget(FadeInImage(
+        placeholder: placeholderProvider,
+        image: imageProvider,
+        fadeOutDuration: animationDuration,
+        fadeInDuration: animationDuration,
+        excludeFromSemantics: true,
+      ));
+
+      placeholderProvider.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Image), findsNWidgets(2));
+
+      imageProvider.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(Image), findsOneWidget);
     });
 
     testWidgets('re-fades in the image when the target image is updated', (WidgetTester tester) async {
@@ -199,7 +243,7 @@ Future<void> main() async {
         excludeFromSemantics: true,
       ));
 
-      final State state = findFadeInImage(tester).state;
+      final State? state = findFadeInImage(tester).state;
       placeholderProvider.complete();
       imageProvider.complete();
       await tester.pump();
@@ -216,19 +260,19 @@ Future<void> main() async {
       secondImageProvider.complete();
       await tester.pump();
 
-      expect(findFadeInImage(tester).target.rawImage.image, same(replacementImage));
+      expect(findFadeInImage(tester).target.rawImage.image!.isCloneOf(replacementImage), true);
       expect(findFadeInImage(tester).state, same(state));
-      expect(findFadeInImage(tester).placeholder.opacity, moreOrLessEquals(1));
+      expect(findFadeInImage(tester).placeholder!.opacity, moreOrLessEquals(1));
       expect(findFadeInImage(tester).target.opacity, moreOrLessEquals(0));
       await tester.pump(animationDuration);
-      expect(findFadeInImage(tester).placeholder.opacity, moreOrLessEquals(0));
+      expect(findFadeInImage(tester).placeholder!.opacity, moreOrLessEquals(0));
       expect(findFadeInImage(tester).target.opacity, moreOrLessEquals(0));
       await tester.pump(animationDuration);
-      expect(findFadeInImage(tester).placeholder.opacity, moreOrLessEquals(0));
+      expect(findFadeInImage(tester).placeholder!.opacity, moreOrLessEquals(0));
       expect(findFadeInImage(tester).target.opacity, moreOrLessEquals(1));
     });
 
-    testWidgets('doesn\'t interrupt in-progress animation when animation values are updated', (WidgetTester tester) async {
+    testWidgets("doesn't interrupt in-progress animation when animation values are updated", (WidgetTester tester) async {
       final TestImageProvider placeholderProvider = TestImageProvider(placeholderImage);
       final TestImageProvider imageProvider = TestImageProvider(targetImage);
 
@@ -240,7 +284,7 @@ Future<void> main() async {
         excludeFromSemantics: true,
       ));
 
-      final State state = findFadeInImage(tester).state;
+      final State? state = findFadeInImage(tester).state;
       placeholderProvider.complete();
       imageProvider.complete();
       await tester.pump();
@@ -255,11 +299,65 @@ Future<void> main() async {
       ));
 
       expect(findFadeInImage(tester).state, same(state));
-      expect(findFadeInImage(tester).placeholder.opacity, moreOrLessEquals(0));
+      expect(findFadeInImage(tester).placeholder!.opacity, moreOrLessEquals(0));
       expect(findFadeInImage(tester).target.opacity, moreOrLessEquals(0));
       await tester.pump(animationDuration);
-      expect(findFadeInImage(tester).placeholder.opacity, moreOrLessEquals(0));
+      expect(findFadeInImage(tester).placeholder!.opacity, moreOrLessEquals(0));
       expect(findFadeInImage(tester).target.opacity, moreOrLessEquals(1));
+    });
+
+    group('ImageProvider', () {
+
+      testWidgets('memory placeholder cacheWidth and cacheHeight is passed through', (WidgetTester tester) async {
+        final Uint8List testBytes = Uint8List.fromList(kTransparentImage);
+        final FadeInImage image = FadeInImage.memoryNetwork(
+          placeholder: testBytes,
+          image: 'test.com',
+          placeholderCacheWidth: 20,
+          placeholderCacheHeight: 30,
+          imageCacheWidth: 40,
+          imageCacheHeight: 50,
+        );
+
+        bool called = false;
+        Future<ui.Codec> decode(Uint8List bytes, {int? cacheWidth, int? cacheHeight, bool allowUpscaling = false}) {
+          expect(cacheWidth, 20);
+          expect(cacheHeight, 30);
+          expect(allowUpscaling, false);
+          called = true;
+          return PaintingBinding.instance!.instantiateImageCodec(bytes, cacheWidth: cacheWidth, cacheHeight: cacheHeight, allowUpscaling: allowUpscaling);
+        }
+        final ImageProvider resizeImage = image.placeholder;
+        expect(image.placeholder, isA<ResizeImage>());
+        expect(called, false);
+        final LoadTestImageProvider testProvider = LoadTestImageProvider(image.placeholder);
+        testProvider.testLoad(await resizeImage.obtainKey(ImageConfiguration.empty), decode);
+        expect(called, true);
+      });
+
+      testWidgets('do not resize when null cache dimensions', (WidgetTester tester) async {
+        final Uint8List testBytes = Uint8List.fromList(kTransparentImage);
+        final FadeInImage image = FadeInImage.memoryNetwork(
+          placeholder: testBytes,
+          image: 'test.com',
+        );
+
+        bool called = false;
+        Future<ui.Codec> decode(Uint8List bytes, {int? cacheWidth, int? cacheHeight, bool allowUpscaling = false}) {
+          expect(cacheWidth, null);
+          expect(cacheHeight, null);
+          expect(allowUpscaling, false);
+          called = true;
+          return PaintingBinding.instance!.instantiateImageCodec(bytes, cacheWidth: cacheWidth, cacheHeight: cacheHeight);
+        }
+        // image.placeholder should be an instance of MemoryImage instead of ResizeImage
+        final ImageProvider memoryImage = image.placeholder;
+        expect(image.placeholder, isA<MemoryImage>());
+        expect(called, false);
+        final LoadTestImageProvider testProvider = LoadTestImageProvider(image.placeholder);
+        testProvider.testLoad(await memoryImage.obtainKey(ImageConfiguration.empty), decode);
+        expect(called, true);
+      });
     });
 
     group('semantics', () {

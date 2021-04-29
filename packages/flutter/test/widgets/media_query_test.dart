@@ -1,10 +1,11 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:ui' show Brightness;
-import 'package:flutter_test/flutter_test.dart';
+
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('MediaQuery does not have a default', (WidgetTester tester) async {
@@ -19,15 +20,58 @@ void main() {
       ),
     );
     expect(tested, isTrue);
-    expect(tester.takeException(), isFlutterError);
+    final dynamic exception = tester.takeException();
+    expect(exception, isNotNull);
+    expect(exception ,isFlutterError);
+    final FlutterError error = exception as FlutterError;
+    expect(error.diagnostics.length, 5);
+    expect(error.diagnostics.last, isA<ErrorHint>());
+    expect(
+      error.toStringDeep(),
+      equalsIgnoringHashCodes(
+        'FlutterError\n'
+        '   No MediaQuery widget ancestor found.\n'
+        '   Builder widgets require a MediaQuery widget ancestor.\n'
+        '   The specific widget that could not find a MediaQuery ancestor\n'
+        '   was:\n'
+        '     Builder\n'
+        '   The ownership chain for the affected widget is: "Builder ←\n'
+        '     [root]"\n'
+        '   No MediaQuery ancestor could be found starting from the context\n'
+        '   that was passed to MediaQuery.of(). This can happen because you\n'
+        '   have not added a WidgetsApp, CupertinoApp, or MaterialApp widget\n'
+        '   (those widgets introduce a MediaQuery), or it can happen if the\n'
+        '   context you use comes from a widget above those widgets.\n',
+      ),
+    );
   });
 
-  testWidgets('MediaQuery defaults to null', (WidgetTester tester) async {
+  testWidgets('MediaQuery.of finds a MediaQueryData when there is one', (WidgetTester tester) async {
+    bool tested = false;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(),
+        child: Builder(
+          builder: (BuildContext context) {
+            final MediaQueryData data = MediaQuery.of(context);
+            expect(data, isNotNull);
+            tested = true;
+            return Container();
+          },
+        ),
+      ),
+    );
+    final dynamic exception = tester.takeException();
+    expect(exception, isNull);
+    expect(tested, isTrue);
+  });
+
+  testWidgets('MediaQuery.maybeOf defaults to null', (WidgetTester tester) async {
     bool tested = false;
     await tester.pumpWidget(
       Builder(
         builder: (BuildContext context) {
-          final MediaQueryData data = MediaQuery.of(context, nullOk: true);
+          final MediaQueryData? data = MediaQuery.maybeOf(context);
           expect(data, isNull);
           tested = true;
           return Container();
@@ -37,21 +81,39 @@ void main() {
     expect(tested, isTrue);
   });
 
-  testWidgets('MediaQueryData is sane', (WidgetTester tester) async {
-    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance.window);
+  testWidgets('MediaQuery.maybeOf finds a MediaQueryData when there is one', (WidgetTester tester) async {
+    bool tested = false;
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(),
+        child: Builder(
+          builder: (BuildContext context) {
+            final MediaQueryData? data = MediaQuery.maybeOf(context);
+            expect(data, isNotNull);
+            tested = true;
+            return Container();
+          },
+        ),
+      ),
+    );
+    expect(tested, isTrue);
+  });
+
+  testWidgets('MediaQueryData.fromWindow is sane', (WidgetTester tester) async {
+    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance!.window);
     expect(data, hasOneLineDescription);
     expect(data.hashCode, equals(data.copyWith().hashCode));
-    expect(data.size, equals(WidgetsBinding.instance.window.physicalSize / WidgetsBinding.instance.window.devicePixelRatio));
+    expect(data.size, equals(WidgetsBinding.instance!.window.physicalSize / WidgetsBinding.instance!.window.devicePixelRatio));
     expect(data.accessibleNavigation, false);
     expect(data.invertColors, false);
     expect(data.disableAnimations, false);
     expect(data.boldText, false);
+    expect(data.highContrast, false);
     expect(data.platformBrightness, Brightness.light);
-    expect(data.physicalDepth, equals(WidgetsBinding.instance.window.physicalDepth));
   });
 
   testWidgets('MediaQueryData.copyWith defaults to source', (WidgetTester tester) async {
-    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance.window);
+    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance!.window);
     final MediaQueryData copied = data.copyWith();
     expect(copied.size, data.size);
     expect(copied.devicePixelRatio, data.devicePixelRatio);
@@ -60,12 +122,12 @@ void main() {
     expect(copied.viewPadding, data.viewPadding);
     expect(copied.viewInsets, data.viewInsets);
     expect(copied.systemGestureInsets, data.systemGestureInsets);
-    expect(copied.physicalDepth, data.physicalDepth);
     expect(copied.alwaysUse24HourFormat, data.alwaysUse24HourFormat);
     expect(copied.accessibleNavigation, data.accessibleNavigation);
     expect(copied.invertColors, data.invertColors);
     expect(copied.disableAnimations, data.disableAnimations);
     expect(copied.boldText, data.boldText);
+    expect(copied.highContrast, data.highContrast);
     expect(copied.platformBrightness, data.platformBrightness);
   });
 
@@ -79,9 +141,8 @@ void main() {
     const EdgeInsets customViewPadding = EdgeInsets.all(11.24031);
     const EdgeInsets customViewInsets = EdgeInsets.all(1.67262);
     const EdgeInsets customSystemGestureInsets = EdgeInsets.all(1.5556);
-    const double customPhysicalDepth = 120.0;
 
-    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance.window);
+    final MediaQueryData data = MediaQueryData.fromWindow(WidgetsBinding.instance!.window);
     final MediaQueryData copied = data.copyWith(
       size: customSize,
       devicePixelRatio: customDevicePixelRatio,
@@ -90,12 +151,12 @@ void main() {
       viewPadding: customViewPadding,
       viewInsets: customViewInsets,
       systemGestureInsets: customSystemGestureInsets,
-      physicalDepth: customPhysicalDepth,
       alwaysUse24HourFormat: true,
       accessibleNavigation: true,
       invertColors: true,
       disableAnimations: true,
       boldText: true,
+      highContrast: true,
       platformBrightness: Brightness.dark,
     );
     expect(copied.size, customSize);
@@ -105,12 +166,12 @@ void main() {
     expect(copied.viewPadding, customViewPadding);
     expect(copied.viewInsets, customViewInsets);
     expect(copied.systemGestureInsets, customSystemGestureInsets);
-    expect(copied.physicalDepth, customPhysicalDepth);
     expect(copied.alwaysUse24HourFormat, true);
     expect(copied.accessibleNavigation, true);
     expect(copied.invertColors, true);
     expect(copied.disableAnimations, true);
     expect(copied.boldText, true);
+    expect(copied.highContrast, true);
     expect(copied.platformBrightness, Brightness.dark);
   });
 
@@ -122,7 +183,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 5.0, right: 6.0, left: 7.0, bottom: 8.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -137,6 +198,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -169,6 +231,7 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.removePadding only removes specified padding', (WidgetTester tester) async {
@@ -179,7 +242,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 5.0, right: 6.0, left: 7.0, bottom: 8.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -194,6 +257,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -223,6 +287,7 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.removeViewInsets removes specified viewInsets', (WidgetTester tester) async {
@@ -233,7 +298,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 1.0, right: 2.0, left: 3.0, bottom: 4.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -248,6 +313,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -280,6 +346,7 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.removeViewInsets removes only specified viewInsets', (WidgetTester tester) async {
@@ -290,7 +357,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 1.0, right: 2.0, left: 3.0, bottom: 4.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -305,6 +372,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -334,6 +402,7 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.removeViewPadding removes specified viewPadding', (WidgetTester tester) async {
@@ -344,7 +413,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 1.0, right: 2.0, left: 3.0, bottom: 4.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -359,6 +428,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -391,6 +461,7 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.removeViewPadding removes only specified viewPadding', (WidgetTester tester) async {
@@ -401,7 +472,7 @@ void main() {
     const EdgeInsets viewPadding = EdgeInsets.only(top: 6.0, right: 8.0, left: 10.0, bottom: 12.0);
     const EdgeInsets viewInsets = EdgeInsets.only(top: 1.0, right: 2.0, left: 3.0, bottom: 4.0);
 
-    MediaQueryData unpadded;
+    late MediaQueryData unpadded;
     await tester.pumpWidget(
       MediaQuery(
         data: const MediaQueryData(
@@ -416,6 +487,7 @@ void main() {
           invertColors: true,
           disableAnimations: true,
           boldText: true,
+          highContrast: true,
         ),
         child: Builder(
           builder: (BuildContext context) {
@@ -445,11 +517,12 @@ void main() {
     expect(unpadded.invertColors, true);
     expect(unpadded.disableAnimations, true);
     expect(unpadded.boldText, true);
+    expect(unpadded.highContrast, true);
   });
 
   testWidgets('MediaQuery.textScaleFactorOf', (WidgetTester tester) async {
-    double outsideTextScaleFactor;
-    double insideTextScaleFactor;
+    late double outsideTextScaleFactor;
+    late double insideTextScaleFactor;
 
     await tester.pumpWidget(
       Builder(
@@ -475,8 +548,8 @@ void main() {
   });
 
   testWidgets('MediaQuery.platformBrightnessOf', (WidgetTester tester) async {
-    Brightness outsideBrightness;
-    Brightness insideBrightness;
+    late Brightness outsideBrightness;
+    late Brightness insideBrightness;
 
     await tester.pumpWidget(
       Builder(
@@ -501,9 +574,36 @@ void main() {
     expect(insideBrightness, Brightness.dark);
   });
 
+  testWidgets('MediaQuery.highContrastOf', (WidgetTester tester) async {
+    late bool outsideHighContrast;
+    late bool insideHighContrast;
+
+    await tester.pumpWidget(
+      Builder(
+        builder: (BuildContext context) {
+          outsideHighContrast = MediaQuery.highContrastOf(context);
+          return MediaQuery(
+            data: const MediaQueryData(
+              highContrast: true,
+            ),
+            child: Builder(
+              builder: (BuildContext context) {
+                insideHighContrast = MediaQuery.highContrastOf(context);
+                return Container();
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    expect(outsideHighContrast, false);
+    expect(insideHighContrast, true);
+  });
+
   testWidgets('MediaQuery.boldTextOverride', (WidgetTester tester) async {
-    bool outsideBoldTextOverride;
-    bool insideBoldTextOverride;
+    late bool outsideBoldTextOverride;
+    late bool insideBoldTextOverride;
 
     await tester.pumpWidget(
       Builder(

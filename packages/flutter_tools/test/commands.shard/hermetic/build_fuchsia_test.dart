@@ -1,217 +1,219 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'package:file/memory.dart';
-import 'package:flutter_tools/src/base/common.dart';
+import 'package:file_testing/file_testing.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
 import 'package:flutter_tools/src/base/platform.dart';
 import 'package:flutter_tools/src/build_info.dart';
 import 'package:flutter_tools/src/cache.dart';
 import 'package:flutter_tools/src/commands/build.dart';
+import 'package:flutter_tools/src/features.dart';
 import 'package:flutter_tools/src/fuchsia/fuchsia_kernel_compiler.dart';
 import 'package:flutter_tools/src/fuchsia/fuchsia_pm.dart';
 import 'package:flutter_tools/src/fuchsia/fuchsia_sdk.dart';
 import 'package:flutter_tools/src/project.dart';
 import 'package:meta/meta.dart';
-import 'package:mockito/mockito.dart';
-import 'package:process/process.dart';
+import 'package:test/fake.dart';
 
 import '../../src/common.dart';
 import '../../src/context.dart';
-import '../../src/mocks.dart';
+import '../../src/fakes.dart';
+import '../../src/test_flutter_command_runner.dart';
+
+// Defined globally for fakes to use.
+FileSystem fileSystem;
 
 void main() {
   Cache.disableLocking();
 
-  MockPlatform linuxPlatform;
-  MockPlatform windowsPlatform;
-  MockFuchsiaSdk fuchsiaSdk;
-  MockFuchsiaArtifacts fuchsiaArtifacts;
-  MockFuchsiaArtifacts fuchsiaArtifactsNoCompiler;
+  final Platform linuxPlatform = FakePlatform(
+    operatingSystem: 'linux',
+    environment: const <String, String>{
+      'FLUTTER_ROOT': '/',
+    },
+  );
+  final Platform windowsPlatform = FakePlatform(
+    operatingSystem: 'windows',
+    environment: const <String, String>{
+      'FLUTTER_ROOT': '/'
+    },
+  );
+  FakeFuchsiaSdk fuchsiaSdk;
 
   setUp(() {
-    linuxPlatform = MockPlatform();
-    windowsPlatform = MockPlatform();
-    fuchsiaSdk = MockFuchsiaSdk();
-    fuchsiaArtifacts = MockFuchsiaArtifacts();
-    fuchsiaArtifactsNoCompiler = MockFuchsiaArtifacts();
-
-    when(linuxPlatform.isLinux).thenReturn(true);
-    when(linuxPlatform.isWindows).thenReturn(false);
-    when(windowsPlatform.isWindows).thenReturn(true);
-    when(windowsPlatform.isLinux).thenReturn(false);
-    when(windowsPlatform.isMacOS).thenReturn(false);
-    when(fuchsiaArtifacts.kernelCompiler).thenReturn(MockFile());
-    when(fuchsiaArtifactsNoCompiler.kernelCompiler).thenReturn(null);
+    fuchsiaSdk = FakeFuchsiaSdk();
+    fileSystem = MemoryFileSystem.test();
   });
 
   group('Fuchsia build fails gracefully when', () {
-    testUsingContext('there is no Fuchsia project', () async {
+    testUsingContext('The feature is disabled', () async {
       final BuildCommand command = BuildCommand();
-      applyMocksToCommand(command);
+      fileSystem.directory('fuchsia').createSync(recursive: true);
+      fileSystem.file('.packages').createSync();
+      fileSystem.file('pubspec.yaml').createSync();
+      fileSystem.file('lib/main.dart').createSync(recursive: true);
+
       expect(
-          createTestCommandRunner(command)
-              .run(const <String>['build', 'fuchsia']),
-          throwsA(isInstanceOf<ToolExit>()));
+        createTestCommandRunner(command).run(const <String>['build', 'fuchsia']),
+        throwsToolExit(message: '"build fuchsia" is currently disabled'),
+      );
     }, overrides: <Type, Generator>{
       Platform: () => linuxPlatform,
-      FileSystem: () => MemoryFileSystem(),
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
-      FuchsiaArtifacts: () => fuchsiaArtifacts,
+      FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: false),
+    });
+    testUsingContext('there is no Fuchsia project', () async {
+      final BuildCommand command = BuildCommand();
+
+      expect(
+        createTestCommandRunner(command).run(const <String>['build', 'fuchsia']),
+        throwsToolExit(),
+      );
+    }, overrides: <Type, Generator>{
+      Platform: () => linuxPlatform,
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+      FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: true),
     });
 
     testUsingContext('there is no cmx file', () async {
       final BuildCommand command = BuildCommand();
-      applyMocksToCommand(command);
-      fs.directory('fuchsia').createSync(recursive: true);
-      fs.file('.packages').createSync();
-      fs.file('pubspec.yaml').createSync();
+      fileSystem.directory('fuchsia').createSync(recursive: true);
+      fileSystem.file('.packages').createSync();
+      fileSystem.file('pubspec.yaml').createSync();
 
       expect(
-          createTestCommandRunner(command)
-              .run(const <String>['build', 'fuchsia']),
-          throwsA(isInstanceOf<ToolExit>()));
+        createTestCommandRunner(command).run(const <String>['build', 'fuchsia']),
+        throwsToolExit(),
+      );
     }, overrides: <Type, Generator>{
       Platform: () => linuxPlatform,
-      FileSystem: () => MemoryFileSystem(),
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
-      FuchsiaArtifacts: () => fuchsiaArtifacts,
+      FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: true),
     });
 
     testUsingContext('on Windows platform', () async {
       final BuildCommand command = BuildCommand();
-      applyMocksToCommand(command);
       const String appName = 'app_name';
-      fs
-          .file(fs.path.join('fuchsia', 'meta', '$appName.cmx'))
-          ..createSync(recursive: true)
-          ..writeAsStringSync('{}');
-      fs.file('.packages').createSync();
-      final File pubspecFile = fs.file('pubspec.yaml')..createSync();
+      fileSystem
+        .file(fileSystem.path.join('fuchsia', 'meta', '$appName.cmx'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      fileSystem.file('.packages').createSync();
+      final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
       pubspecFile.writeAsStringSync('name: $appName');
 
       expect(
-          createTestCommandRunner(command)
-              .run(const <String>['build', 'fuchsia']),
-          throwsA(isInstanceOf<ToolExit>()));
+        createTestCommandRunner(command).run(const <String>['build', 'fuchsia']),
+        throwsToolExit(),
+      );
     }, overrides: <Type, Generator>{
       Platform: () => windowsPlatform,
-      FileSystem: () => MemoryFileSystem(),
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
-      FuchsiaArtifacts: () => fuchsiaArtifacts,
+      FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: true),
     });
 
     testUsingContext('there is no Fuchsia kernel compiler', () async {
       final BuildCommand command = BuildCommand();
-      applyMocksToCommand(command);
       const String appName = 'app_name';
-      fs
-          .file(fs.path.join('fuchsia', 'meta', '$appName.cmx'))
-          ..createSync(recursive: true)
-          ..writeAsStringSync('{}');
-      fs.file('.packages').createSync();
-      fs.file(fs.path.join('lib', 'main.dart')).createSync(recursive: true);
-      final File pubspecFile = fs.file('pubspec.yaml')..createSync();
+      fileSystem
+        .file(fileSystem.path.join('fuchsia', 'meta', '$appName.cmx'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{}');
+      fileSystem.file('.packages').createSync();
+      fileSystem.file(fileSystem.path.join('lib', 'main.dart')).createSync(recursive: true);
+      final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
       pubspecFile.writeAsStringSync('name: $appName');
+
       expect(
-          createTestCommandRunner(command)
-              .run(const <String>['build', 'fuchsia']),
-          throwsA(isInstanceOf<ToolExit>()));
+        createTestCommandRunner(command).run(const <String>['build', 'fuchsia']),
+        throwsToolExit(),
+      );
     }, overrides: <Type, Generator>{
       Platform: () => linuxPlatform,
-      FileSystem: () => MemoryFileSystem(),
+      FileSystem: () => fileSystem,
       ProcessManager: () => FakeProcessManager.any(),
-      FuchsiaArtifacts: () => fuchsiaArtifactsNoCompiler,
+      FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: true),
     });
   });
 
   testUsingContext('Fuchsia build parts fit together right', () async {
     final BuildCommand command = BuildCommand();
-    applyMocksToCommand(command);
     const String appName = 'app_name';
-    fs
-        .file(fs.path.join('fuchsia', 'meta', '$appName.cmx'))
+    fileSystem
+        .file(fileSystem.path.join('fuchsia', 'meta', '$appName.cmx'))
         ..createSync(recursive: true)
         ..writeAsStringSync('{}');
-    fs.file('.packages').createSync();
-    fs.file(fs.path.join('lib', 'main.dart')).createSync(recursive: true);
-    final File pubspecFile = fs.file('pubspec.yaml')..createSync();
+    fileSystem.file('.packages').createSync();
+    fileSystem.file(fileSystem.path.join('lib', 'main.dart')).createSync(recursive: true);
+    final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
     pubspecFile.writeAsStringSync('name: $appName');
 
     await createTestCommandRunner(command)
-        .run(const <String>['build', 'fuchsia']);
-    final String farPath =
-        fs.path.join(getFuchsiaBuildDirectory(), 'pkg', 'app_name-0.far');
-    expect(fs.file(farPath).existsSync(), isTrue);
+      .run(const <String>['build', 'fuchsia']);
+    final String farPath = fileSystem.path.join(
+      getFuchsiaBuildDirectory(), 'pkg', 'app_name-0.far',
+    );
+
+    expect(fileSystem.file(farPath), exists);
   }, overrides: <Type, Generator>{
     Platform: () => linuxPlatform,
-    FileSystem: () => MemoryFileSystem(),
+    FileSystem: () => fileSystem,
     ProcessManager: () => FakeProcessManager.any(),
     FuchsiaSdk: () => fuchsiaSdk,
+    FeatureFlags: () => TestFeatureFlags(isFuchsiaEnabled: true),
   });
 }
 
-class MockPlatform extends Mock implements Platform {
-  @override
-  Map<String, String> environment = <String, String>{
-    'FLUTTER_ROOT': '/',
-  };
-}
-
-class MockFuchsiaPM extends Mock implements FuchsiaPM {
+class FakeFuchsiaPM extends Fake implements FuchsiaPM {
   String _appName;
 
   @override
   Future<bool> init(String buildPath, String appName) async {
-    if (!fs.directory(buildPath).existsSync()) {
+    if (!fileSystem.directory(buildPath).existsSync()) {
       return false;
     }
-    fs
-        .file(fs.path.join(buildPath, 'meta', 'package'))
+    fileSystem
+        .file(fileSystem.path.join(buildPath, 'meta', 'package'))
         .createSync(recursive: true);
     _appName = appName;
     return true;
   }
 
   @override
-  Future<bool> genkey(String buildPath, String outKeyPath) async {
-    if (!fs.file(fs.path.join(buildPath, 'meta', 'package')).existsSync()) {
+  Future<bool> build(String buildPath, String manifestPath) async {
+    if (!fileSystem.file(fileSystem.path.join(buildPath, 'meta', 'package')).existsSync() ||
+        !fileSystem.file(manifestPath).existsSync()) {
       return false;
     }
-    fs.file(outKeyPath).createSync(recursive: true);
+    fileSystem.file(fileSystem.path.join(buildPath, 'meta.far')).createSync(recursive: true);
     return true;
   }
 
   @override
-  Future<bool> build(String buildPath, String keyPath, String manifestPath) async {
-    if (!fs.file(fs.path.join(buildPath, 'meta', 'package')).existsSync() ||
-        !fs.file(keyPath).existsSync() ||
-        !fs.file(manifestPath).existsSync()) {
-      return false;
-    }
-    fs.file(fs.path.join(buildPath, 'meta.far')).createSync(recursive: true);
-    return true;
-  }
-
-  @override
-  Future<bool> archive(String buildPath, String keyPath, String manifestPath) async {
-    if (!fs.file(fs.path.join(buildPath, 'meta', 'package')).existsSync() ||
-        !fs.file(keyPath).existsSync() ||
-        !fs.file(manifestPath).existsSync()) {
+  Future<bool> archive(String buildPath, String manifestPath) async {
+    if (!fileSystem.file(fileSystem.path.join(buildPath, 'meta', 'package')).existsSync() ||
+        !fileSystem.file(manifestPath).existsSync()) {
       return false;
     }
     if (_appName == null) {
       return false;
     }
-    fs
-        .file(fs.path.join(buildPath, '$_appName-0.far'))
+    fileSystem
+        .file(fileSystem.path.join(buildPath, '$_appName-0.far'))
         .createSync(recursive: true);
     return true;
   }
 }
 
-class MockFuchsiaKernelCompiler extends Mock implements FuchsiaKernelCompiler {
+class FakeFuchsiaKernelCompiler extends Fake implements FuchsiaKernelCompiler {
   @override
   Future<void> build({
     @required FuchsiaProject fuchsiaProject,
@@ -220,20 +222,16 @@ class MockFuchsiaKernelCompiler extends Mock implements FuchsiaKernelCompiler {
   }) async {
     final String outDir = getFuchsiaBuildDirectory();
     final String appName = fuchsiaProject.project.manifest.appName;
-    final String manifestPath = fs.path.join(outDir, '$appName.dilpmanifest');
-    fs.file(manifestPath).createSync(recursive: true);
+    final String manifestPath = fileSystem.path.join(outDir, '$appName.dilpmanifest');
+    fileSystem.file(manifestPath).createSync(recursive: true);
   }
 }
 
-class MockFuchsiaSdk extends Mock implements FuchsiaSdk {
+class FakeFuchsiaSdk extends Fake implements FuchsiaSdk {
   @override
-  final FuchsiaPM fuchsiaPM = MockFuchsiaPM();
+  final FuchsiaPM fuchsiaPM = FakeFuchsiaPM();
 
   @override
   final FuchsiaKernelCompiler fuchsiaKernelCompiler =
-      MockFuchsiaKernelCompiler();
+      FakeFuchsiaKernelCompiler();
 }
-
-class MockFile extends Mock implements File {}
-
-class MockFuchsiaArtifacts extends Mock implements FuchsiaArtifacts {}

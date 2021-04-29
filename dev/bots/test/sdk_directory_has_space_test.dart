@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,5 +17,5 @@ void main() {
     expect(expectedName, contains(' '));
     final List<String> parts = path.split(Directory.current.absolute.path);
     expect(parts.reversed.take(3), <String>['bots', 'dev', expectedName]);
-  }, skip: true);
+  }, skip: true); // https://github.com/flutter/flutter/issues/62919
 }

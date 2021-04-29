@@ -1,87 +1,201 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @dart = 2.8
+
 import 'package:file/memory.dart';
 import 'package:flutter_tools/src/base/file_system.dart';
+import 'package:flutter_tools/src/base/logger.dart';
 import 'package:flutter_tools/src/base/platform.dart';
 import 'package:flutter_tools/src/build_info.dart';
+import 'package:flutter_tools/src/device.dart';
+import 'package:flutter_tools/src/features.dart';
 import 'package:flutter_tools/src/project.dart';
 import 'package:flutter_tools/src/windows/application_package.dart';
 import 'package:flutter_tools/src/windows/windows_device.dart';
-import 'package:flutter_tools/src/device.dart';
-import 'package:mockito/mockito.dart';
+import 'package:flutter_tools/src/windows/windows_workflow.dart';
+import 'package:test/fake.dart';
 
 import '../../src/common.dart';
 import '../../src/context.dart';
+import '../../src/fakes.dart';
 
 void main() {
-  group(WindowsDevice, () {
-    final WindowsDevice device = WindowsDevice();
-    final MockPlatform notWindows = MockPlatform();
+  testWithoutContext('WindowsDevice defaults', () async {
+    final WindowsDevice windowsDevice = setUpWindowsDevice();
+    final PrebuiltWindowsApp windowsApp = PrebuiltWindowsApp(executable: 'foo');
 
-    when(notWindows.isWindows).thenReturn(false);
-    when(notWindows.environment).thenReturn(const <String, String>{});
+    expect(await windowsDevice.targetPlatform, TargetPlatform.windows_x64);
+    expect(windowsDevice.name, 'Windows');
+    expect(await windowsDevice.installApp(windowsApp), true);
+    expect(await windowsDevice.uninstallApp(windowsApp), true);
+    expect(await windowsDevice.isLatestBuildInstalled(windowsApp), true);
+    expect(await windowsDevice.isAppInstalled(windowsApp), true);
+    expect(windowsDevice.category, Category.desktop);
 
-    testUsingContext('defaults', () async {
-      final PrebuiltWindowsApp windowsApp = PrebuiltWindowsApp(executable: 'foo');
-      expect(await device.targetPlatform, TargetPlatform.windows_x64);
-      expect(device.name, 'Windows');
-      expect(await device.installApp(windowsApp), true);
-      expect(await device.uninstallApp(windowsApp), true);
-      expect(await device.isLatestBuildInstalled(windowsApp), true);
-      expect(await device.isAppInstalled(windowsApp), true);
-      expect(device.category, Category.desktop);
-    });
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.debug), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.profile), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.release), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.jitRelease), false);
+  });
 
-    testUsingContext('No devices listed if platform unsupported', () async {
-      expect(await WindowsDevices().devices, <Device>[]);
-    }, overrides: <Type, Generator>{
-      Platform: () => notWindows,
-    });
+  testWithoutContext('WindowsUwpDevice defaults', () async {
+    final WindowsUWPDevice windowsDevice = setUpWindowsUwpDevice();
+    final PrebuiltWindowsApp windowsApp = PrebuiltWindowsApp(executable: 'foo');
 
-    testUsingContext('isSupportedForProject is true with editable host app', () async {
-      fs.file('pubspec.yaml').createSync();
-      fs.file('.packages').createSync();
-      fs.directory('windows').createSync();
-      final FlutterProject flutterProject = FlutterProject.current();
+    expect(await windowsDevice.targetPlatform, TargetPlatform.windows_uwp_x64);
+    expect(windowsDevice.name, 'Windows (UWP)');
+    expect(await windowsDevice.installApp(windowsApp), true);
+    expect(await windowsDevice.uninstallApp(windowsApp), true);
+    expect(await windowsDevice.isLatestBuildInstalled(windowsApp), true);
+    expect(await windowsDevice.isAppInstalled(windowsApp), true);
+    expect(windowsDevice.category, Category.desktop);
 
-      expect(WindowsDevice().isSupportedForProject(flutterProject), true);
-    }, overrides: <Type, Generator>{
-      FileSystem: () => MemoryFileSystem(),
-      ProcessManager: () => FakeProcessManager.any(),
-    });
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.debug), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.profile), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.release), true);
+    expect(windowsDevice.supportsRuntimeMode(BuildMode.jitRelease), false);
+  });
 
-    testUsingContext('isSupportedForProject is false with no host app', () async {
-      fs.file('pubspec.yaml').createSync();
-      fs.file('.packages').createSync();
-      final FlutterProject flutterProject = FlutterProject.current();
+  testWithoutContext('WindowsDevices does not list devices if the workflow is unsupported', () async {
+    expect(await WindowsDevices(
+      windowsWorkflow: WindowsWorkflow(
+        featureFlags: TestFeatureFlags(isWindowsEnabled: false),
+        platform: FakePlatform(operatingSystem: 'windows'),
+      ),
+      featureFlags: TestFeatureFlags(isWindowsEnabled: false),
+      operatingSystemUtils: FakeOperatingSystemUtils(),
+      logger: BufferLogger.test(),
+      processManager: FakeProcessManager.any(),
+      fileSystem: MemoryFileSystem.test(),
+    ).devices, <Device>[]);
+  });
 
-      expect(WindowsDevice().isSupportedForProject(flutterProject), false);
-    }, overrides: <Type, Generator>{
-      FileSystem: () => MemoryFileSystem(),
-      ProcessManager: () => FakeProcessManager.any(),
-    });
+  testWithoutContext('WindowsDevices lists a devices if the workflow is supported', () async {
+    expect(await WindowsDevices(
+      windowsWorkflow: WindowsWorkflow(
+        featureFlags: TestFeatureFlags(isWindowsEnabled: true),
+        platform: FakePlatform(operatingSystem: 'windows')
+      ),
+      operatingSystemUtils: FakeOperatingSystemUtils(),
+      logger: BufferLogger.test(),
+      processManager: FakeProcessManager.any(),
+      fileSystem: MemoryFileSystem.test(),
+      featureFlags: TestFeatureFlags(isWindowsEnabled: true),
+    ).devices, hasLength(1));
+  });
 
-    testUsingContext('executablePathForDevice uses the correct package executable', () async {
-      final MockWindowsApp mockApp = MockWindowsApp();
-      const String debugPath = 'debug/executable';
-      const String profilePath = 'profile/executable';
-      const String releasePath = 'release/executable';
-      when(mockApp.executable(BuildMode.debug)).thenReturn(debugPath);
-      when(mockApp.executable(BuildMode.profile)).thenReturn(profilePath);
-      when(mockApp.executable(BuildMode.release)).thenReturn(releasePath);
+  testWithoutContext('WindowsDevices lists a UWP Windows device if feature is enabled', () async {
+    final FeatureFlags featureFlags = TestFeatureFlags(isWindowsEnabled: true, isWindowsUwpEnabled: true);
+    expect(await WindowsDevices(
+      windowsWorkflow: WindowsWorkflow(
+        featureFlags: featureFlags,
+        platform: FakePlatform(operatingSystem: 'windows')
+      ),
+      operatingSystemUtils: FakeOperatingSystemUtils(),
+      logger: BufferLogger.test(),
+      processManager: FakeProcessManager.any(),
+      fileSystem: MemoryFileSystem.test(),
+      featureFlags: featureFlags,
+    ).devices, hasLength(2));
+  });
 
-      expect(WindowsDevice().executablePathForDevice(mockApp, BuildMode.debug), debugPath);
-      expect(WindowsDevice().executablePathForDevice(mockApp, BuildMode.profile), profilePath);
-      expect(WindowsDevice().executablePathForDevice(mockApp, BuildMode.release), releasePath);
-    }, overrides: <Type, Generator>{
-      FileSystem: () => MemoryFileSystem(),
-      ProcessManager: () => FakeProcessManager.any(),
-    });
+  testWithoutContext('WindowsDevices ignores the timeout provided to discoverDevices', () async {
+    final WindowsDevices windowsDevices = WindowsDevices(
+      windowsWorkflow: WindowsWorkflow(
+        featureFlags: TestFeatureFlags(isWindowsEnabled: true),
+        platform: FakePlatform(operatingSystem: 'windows')
+      ),
+      operatingSystemUtils: FakeOperatingSystemUtils(),
+      logger: BufferLogger.test(),
+      processManager: FakeProcessManager.any(),
+      fileSystem: MemoryFileSystem.test(),
+      featureFlags: TestFeatureFlags(isWindowsEnabled: true),
+    );
+    // Timeout ignored.
+    final List<Device> devices = await windowsDevices.discoverDevices(timeout: const Duration(seconds: 10));
+    expect(devices, hasLength(1));
+  });
+
+  testWithoutContext('isSupportedForProject is true with editable host app', () async {
+    final FileSystem fileSystem = MemoryFileSystem.test();
+    final WindowsDevice windowsDevice = setUpWindowsDevice(fileSystem: fileSystem);
+    fileSystem.file('pubspec.yaml').createSync();
+    fileSystem.file('.packages').createSync();
+    fileSystem.directory('windows').createSync();
+    fileSystem.file(fileSystem.path.join('windows', 'CMakeLists.txt')).createSync();
+    final FlutterProject flutterProject = setUpFlutterProject(fileSystem.currentDirectory);
+
+    expect(windowsDevice.isSupportedForProject(flutterProject), true);
+  });
+
+  testWithoutContext('isSupportedForProject is false with no host app', () async {
+    final FileSystem fileSystem = MemoryFileSystem.test();
+    final WindowsDevice windowsDevice = setUpWindowsDevice(fileSystem: fileSystem);
+    fileSystem.file('pubspec.yaml').createSync();
+    fileSystem.file('.packages').createSync();
+    final FlutterProject flutterProject = setUpFlutterProject(fileSystem.currentDirectory);
+
+    expect(windowsDevice.isSupportedForProject(flutterProject), false);
+  });
+
+  testWithoutContext('isSupportedForProject is false with no build file', () async {
+    final FileSystem fileSystem = MemoryFileSystem.test();
+    final WindowsDevice windowsDevice = setUpWindowsDevice(fileSystem: fileSystem);
+    fileSystem.file('pubspec.yaml').createSync();
+    fileSystem.file('.packages').createSync();
+    fileSystem.directory('windows').createSync();
+    final FlutterProject flutterProject = setUpFlutterProject(fileSystem.currentDirectory);
+
+    expect(windowsDevice.isSupportedForProject(flutterProject), false);
+  });
+
+  testWithoutContext('executablePathForDevice uses the correct package executable', () async {
+    final WindowsDevice windowsDevice = setUpWindowsDevice();
+    final FakeWindowsApp fakeApp = FakeWindowsApp();
+
+    expect(windowsDevice.executablePathForDevice(fakeApp, BuildMode.debug), 'debug/executable');
+    expect(windowsDevice.executablePathForDevice(fakeApp, BuildMode.profile), 'profile/executable');
+    expect(windowsDevice.executablePathForDevice(fakeApp, BuildMode.release), 'release/executable');
   });
 }
 
-class MockPlatform extends Mock implements Platform {}
+FlutterProject setUpFlutterProject(Directory directory) {
+  final FlutterProjectFactory flutterProjectFactory = FlutterProjectFactory(
+    fileSystem: directory.fileSystem,
+    logger: BufferLogger.test(),
+  );
+  return flutterProjectFactory.fromDirectory(directory);
+}
 
-class MockWindowsApp extends Mock implements WindowsApp {}
+WindowsDevice setUpWindowsDevice({
+  FileSystem fileSystem,
+  Logger logger,
+  ProcessManager processManager,
+}) {
+  return WindowsDevice(
+    fileSystem: fileSystem ?? MemoryFileSystem.test(),
+    logger: logger ?? BufferLogger.test(),
+    processManager: processManager ?? FakeProcessManager.any(),
+    operatingSystemUtils: FakeOperatingSystemUtils(),
+  );
+}
+
+WindowsUWPDevice setUpWindowsUwpDevice({
+  FileSystem fileSystem,
+  Logger logger,
+  ProcessManager processManager,
+}) {
+  return WindowsUWPDevice(
+    fileSystem: fileSystem ?? MemoryFileSystem.test(),
+    logger: logger ?? BufferLogger.test(),
+    processManager: processManager ?? FakeProcessManager.any(),
+    operatingSystemUtils: FakeOperatingSystemUtils(),
+  );
+}
+
+class FakeWindowsApp extends Fake implements WindowsApp {
+  @override
+  String executable(BuildMode buildMode) => '${buildMode.name}/executable';
+}

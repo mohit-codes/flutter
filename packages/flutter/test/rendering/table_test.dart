@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import 'rendering_tester.dart';
 
 RenderBox sizedBox(double width, double height) {
   return RenderConstrainedBox(
-    additionalConstraints: BoxConstraints.tight(Size(width, height))
+    additionalConstraints: BoxConstraints.tight(Size(width, height)),
   );
 }
 
@@ -44,7 +44,7 @@ void main() {
     RenderTable table;
     layout(RenderPositionedBox(child: table = RenderTable(textDirection: TextDirection.ltr)));
 
-    expect(table.size, equals(const Size(0.0, 0.0)));
+    expect(table.size, equals(Size.zero));
   });
 
   test('Table control test: constrained flex columns', () {
@@ -55,7 +55,7 @@ void main() {
     layout(table, constraints: const BoxConstraints.tightFor(width: 100.0));
 
     const double expectedWidth = 100.0 / 6;
-    for (RenderBox child in children) {
+    for (final RenderBox child in children) {
       expect(child.size.width, moreOrLessEquals(expectedWidth));
     }
   });
@@ -71,7 +71,7 @@ void main() {
       textBaseline: TextBaseline.alphabetic,
     )));
 
-    expect(table.size, equals(const Size(0.0, 0.0)));
+    expect(table.size, equals(Size.zero));
 
     table.setChild(2, 4, sizedBox(100.0, 200.0));
 

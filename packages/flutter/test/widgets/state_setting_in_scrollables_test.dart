@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class Foo extends StatefulWidget {
+  const Foo({ Key? key }) : super(key: key);
   @override
   FooState createState() => FooState();
 }
@@ -18,7 +19,7 @@ class FooState extends State<Foo> {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         return ScrollConfiguration(
-          behavior: FooScrollBehavior(),
+          behavior: const FooScrollBehavior(),
           child: ListView(
             controller: scrollController,
             children: <Widget>[
@@ -67,12 +68,14 @@ class FooState extends State<Foo> {
             ],
           ),
         );
-      }
+      },
     );
   }
 }
 
 class FooScrollBehavior extends ScrollBehavior {
+  const FooScrollBehavior();
+
   @override
   bool shouldNotify(FooScrollBehavior old) => true;
 }
@@ -80,7 +83,7 @@ class FooScrollBehavior extends ScrollBehavior {
 void main() {
   testWidgets('Can animate scroll after setState', (WidgetTester tester) async {
     await tester.pumpWidget(
-      Directionality(
+      const Directionality(
         textDirection: TextDirection.ltr,
         child: Foo(),
       ),

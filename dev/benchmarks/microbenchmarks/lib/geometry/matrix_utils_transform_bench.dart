@@ -1,17 +1,15 @@
-// Copyright 2019 The Flutter Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:math' as math;
 
-import 'package:flutter/painting.dart';
 import 'package:flutter/rendering.dart';
-import 'package:vector_math/vector_math_64.dart';
 
 import '../common.dart';
 
-const int _kNumIterations = 1000000;
-const int _kNumWarmUp = 10000;
+const int _kNumIterations = 10000000;
+const int _kNumWarmUp = 100000;
 
 void main() {
   assert(false, "Don't run benchmarks in checked mode! Use 'flutter run --release'.");
@@ -45,7 +43,7 @@ void main() {
   final List<Offset> _offsets = <Offset>[
     const Offset(1.1, 1.2),
     const Offset(1.5, 1.8),
-    const Offset(0.0, 0.0),
+    Offset.zero,
     const Offset(-1.1, -1.2),
     const Offset(-1.5, -1.8),
   ];

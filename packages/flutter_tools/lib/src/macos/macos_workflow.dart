@@ -1,30 +1,30 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../base/context.dart';
 import '../base/platform.dart';
-import '../doctor.dart';
+import '../doctor_validator.dart';
 import '../features.dart';
 
-/// The [MacOSWorkflow] instance.
-MacOSWorkflow get macOSWorkflow => context.get<MacOSWorkflow>();
-
 /// The macOS-specific implementation of a [Workflow].
-///
-/// This workflow requires the flutter-desktop-embedding as a sibling
-/// repository to the flutter repo.
 class MacOSWorkflow implements Workflow {
-  const MacOSWorkflow();
+  const MacOSWorkflow({
+    required Platform platform,
+    required FeatureFlags featureFlags,
+  }) : _platform = platform,
+       _featureFlags = featureFlags;
+
+  final Platform _platform;
+  final FeatureFlags _featureFlags;
 
   @override
-  bool get appliesToHostPlatform => platform.isMacOS && featureFlags.isMacOSEnabled;
+  bool get appliesToHostPlatform => _platform.isMacOS && _featureFlags.isMacOSEnabled;
 
   @override
-  bool get canLaunchDevices => platform.isMacOS && featureFlags.isMacOSEnabled;
+  bool get canLaunchDevices => _platform.isMacOS && _featureFlags.isMacOSEnabled;
 
   @override
-  bool get canListDevices => platform.isMacOS && featureFlags.isMacOSEnabled;
+  bool get canListDevices => _platform.isMacOS && _featureFlags.isMacOSEnabled;
 
   @override
   bool get canListEmulators => false;

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,7 +26,8 @@ import 'theme.dart';
 ///
 ///  * [ThemeData], which describes the overall theme information for the
 ///    application.
-class DividerThemeData extends Diagnosticable {
+@immutable
+class DividerThemeData with Diagnosticable {
 
   /// Creates a theme that can be used for [DividerTheme] or
   /// [ThemeData.dividerTheme].
@@ -40,33 +41,33 @@ class DividerThemeData extends Diagnosticable {
 
   /// The color of [Divider]s and [VerticalDivider]s, also
   /// used between [ListTile]s, between rows in [DataTable]s, and so forth.
-  final Color color;
+  final Color? color;
 
   /// The [Divider]'s width or the [VerticalDivider]'s height.
   ///
   /// This represents the amount of horizontal or vertical space the divider
   /// takes up.
-  final double space;
+  final double? space;
 
   /// The thickness of the line drawn within the divider.
-  final double thickness;
+  final double? thickness;
 
   /// The amount of empty space at the leading edge of [Divider] or top edge of
   /// [VerticalDivider].
-  final double indent;
+  final double? indent;
 
   /// The amount of empty space at the trailing edge of [Divider] or bottom edge
   /// of [VerticalDivider].
-  final double endIndent;
+  final double? endIndent;
 
   /// Creates a copy of this object with the given fields replaced with the
   /// new values.
   DividerThemeData copyWith({
-    Color color,
-    double space,
-    double thickness,
-    double indent,
-    double endIndent,
+    Color? color,
+    double? space,
+    double? thickness,
+    double? indent,
+    double? endIndent,
   }) {
     return DividerThemeData(
       color: color ?? this.color,
@@ -82,7 +83,7 @@ class DividerThemeData extends Diagnosticable {
   /// The argument `t` must not be null.
   ///
   /// {@macro dart.ui.shadow.lerp}
-  static DividerThemeData lerp(DividerThemeData a, DividerThemeData b, double t) {
+  static DividerThemeData lerp(DividerThemeData? a, DividerThemeData? b, double t) {
     assert(t != null);
     return DividerThemeData(
       color: Color.lerp(a?.color, b?.color, t),
@@ -105,17 +106,17 @@ class DividerThemeData extends Diagnosticable {
   }
 
   @override
-  bool operator ==(dynamic other) {
+  bool operator ==(Object other) {
     if (identical(this, other))
       return true;
     if (other.runtimeType != runtimeType)
       return false;
-    final DividerThemeData typedOther = other;
-    return typedOther.color == color
-        && typedOther.space == space
-        && typedOther.thickness == thickness
-        && typedOther.indent == indent
-        && typedOther.endIndent == endIndent;
+    return other is DividerThemeData
+        && other.color == color
+        && other.space == space
+        && other.thickness == thickness
+        && other.indent == indent
+        && other.endIndent == endIndent;
   }
 
   @override
@@ -130,20 +131,20 @@ class DividerThemeData extends Diagnosticable {
 }
 
 /// An inherited widget that defines the configuration for
-/// [Divider]s, [VerticalDividers]s, dividers between [ListTile]s, and dividers
+/// [Divider]s, [VerticalDivider]s, dividers between [ListTile]s, and dividers
 /// between rows in [DataTable]s in this widget's subtree.
 class DividerTheme extends InheritedTheme {
   /// Creates a divider theme that controls the configurations for
-  /// [Divider]s, [VerticalDividers]s, dividers between [ListTile]s, and dividers
+  /// [Divider]s, [VerticalDivider]s, dividers between [ListTile]s, and dividers
   /// between rows in [DataTable]s in its widget subtree.
   const DividerTheme({
-    Key key,
-    @required this.data,
-    Widget child,
+    Key? key,
+    required this.data,
+    required Widget child,
   }) : assert(data != null),
        super(key: key, child: child);
 
-  /// The properties for descendant [Divider]s, [VerticalDividers]s, dividers
+  /// The properties for descendant [Divider]s, [VerticalDivider]s, dividers
   /// between [ListTile]s, and dividers between rows in [DataTable]s.
   final DividerThemeData data;
 
@@ -159,14 +160,13 @@ class DividerTheme extends InheritedTheme {
   /// DividerThemeData theme = DividerTheme.of(context);
   /// ```
   static DividerThemeData of(BuildContext context) {
-    final DividerTheme dividerTheme = context.inheritFromWidgetOfExactType(DividerTheme);
+    final DividerTheme? dividerTheme = context.dependOnInheritedWidgetOfExactType<DividerTheme>();
     return dividerTheme?.data ?? Theme.of(context).dividerTheme;
   }
 
   @override
   Widget wrap(BuildContext context, Widget child) {
-    final DividerTheme ancestorTheme = context.ancestorWidgetOfExactType(DividerTheme);
-    return identical(this, ancestorTheme) ? child : DividerTheme(data: data, child: child);
+    return DividerTheme(data: data, child: child);
   }
 
   @override

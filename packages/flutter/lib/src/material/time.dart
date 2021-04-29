@@ -1,9 +1,8 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:ui' show hashValues;
-
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'debug.dart';
@@ -29,11 +28,11 @@ enum DayPeriod {
 /// minute or using [DateTime] object.
 /// Hours are specified between 0 and 23, as in a 24-hour clock.
 ///
-/// {@tool sample}
+/// {@tool snippet}
 ///
 /// ```dart
 /// TimeOfDay now = TimeOfDay.now();
-/// TimeOfDay releaseTime = TimeOfDay(hour: 15, minute: 0); // 3:00pm
+/// const TimeOfDay releaseTime = TimeOfDay(hour: 15, minute: 0); // 3:00pm
 /// TimeOfDay roomBooked = TimeOfDay.fromDateTime(DateTime.parse('2018-10-20 16:30:04Z')); // 4:30pm
 /// ```
 /// {@end-tool}
@@ -51,7 +50,7 @@ class TimeOfDay {
   ///
   /// The [hour] argument must be between 0 and 23, inclusive. The [minute]
   /// argument must be between 0 and 59, inclusive.
-  const TimeOfDay({ @required this.hour, @required this.minute });
+  const TimeOfDay({ required this.hour, required this.minute });
 
   /// Creates a time of day based on the given time.
   ///
@@ -77,7 +76,7 @@ class TimeOfDay {
   static const int minutesPerHour = 60;
 
   /// Returns a new TimeOfDay with the hour and/or minute replaced.
-  TimeOfDay replacing({ int hour, int minute }) {
+  TimeOfDay replacing({ int? hour, int? minute }) {
     assert(hour == null || (hour >= 0 && hour < hoursPerDay));
     assert(minute == null || (minute >= 0 && minute < minutesPerHour));
     return TimeOfDay(hour: hour ?? this.hour, minute: minute ?? this.minute);
@@ -112,12 +111,10 @@ class TimeOfDay {
   }
 
   @override
-  bool operator ==(dynamic other) {
-    if (other is! TimeOfDay)
-      return false;
-    final TimeOfDay typedOther = other;
-    return typedOther.hour == hour
-        && typedOther.minute == minute;
+  bool operator ==(Object other) {
+    return other is TimeOfDay
+        && other.hour == hour
+        && other.minute == minute;
   }
 
   @override
@@ -136,6 +133,40 @@ class TimeOfDay {
 
     return '$TimeOfDay($hourLabel:$minuteLabel)';
   }
+}
+
+/// A [RestorableValue] that knows how to save and restore [TimeOfDay].
+///
+/// {@macro flutter.widgets.RestorableNum}.
+class RestorableTimeOfDay extends RestorableValue<TimeOfDay> {
+  /// Creates a [RestorableTimeOfDay].
+  ///
+  /// {@macro flutter.widgets.RestorableNum.constructor}
+  RestorableTimeOfDay(TimeOfDay defaultValue) : _defaultValue = defaultValue;
+
+  final TimeOfDay _defaultValue;
+
+  @override
+  TimeOfDay createDefaultValue() => _defaultValue;
+
+  @override
+  void didUpdateValue(TimeOfDay? oldValue) {
+    assert(debugIsSerializableForRestoration(value.hour));
+    assert(debugIsSerializableForRestoration(value.minute));
+    notifyListeners();
+  }
+
+  @override
+  TimeOfDay fromPrimitives(Object? data) {
+    final List<Object?> timeData = data! as List<Object?>;
+    return TimeOfDay(
+      minute: timeData[0]! as int,
+      hour: timeData[1]! as int,
+    );
+  }
+
+  @override
+  Object? toPrimitives() => <int>[value.minute, value.hour];
 }
 
 /// Determines how the time picker invoked using [showTimePicker] formats and
@@ -204,7 +235,7 @@ enum HourFormat {
 }
 
 /// The [HourFormat] used for the given [TimeOfDayFormat].
-HourFormat hourFormat({ @required TimeOfDayFormat of }) {
+HourFormat hourFormat({ required TimeOfDayFormat of }) {
   switch (of) {
     case TimeOfDayFormat.h_colon_mm_space_a:
     case TimeOfDayFormat.a_space_h_colon_mm:
@@ -216,6 +247,4 @@ HourFormat hourFormat({ @required TimeOfDayFormat of }) {
     case TimeOfDayFormat.frenchCanadian:
       return HourFormat.HH;
   }
-
-  return null;
 }

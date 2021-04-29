@@ -1,21 +1,23 @@
-// Copyright 2019 The Flutter Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
 import '../services/fake_platform_views.dart';
 import 'rendering_tester.dart';
 
 void main() {
 
   group('PlatformViewRenderBox', () {
-    FakePlatformViewController fakePlatformViewController;
-    PlatformViewRenderBox platformViewRenderBox;
-    setUp((){
+    late FakePlatformViewController fakePlatformViewController;
+    late PlatformViewRenderBox platformViewRenderBox;
+    setUp(() {
+      renderer; // Initialize bindings
       fakePlatformViewController = FakePlatformViewController(0);
       platformViewRenderBox = PlatformViewRenderBox(
         controller: fakePlatformViewController,
@@ -37,7 +39,7 @@ void main() {
     });
 
     test('send semantics update if id is changed', (){
-      final RenderObject tree = RenderConstrainedBox(
+      final RenderConstrainedBox tree = RenderConstrainedBox(
         additionalConstraints: const BoxConstraints.tightFor(height: 20.0, width: 20.0),
         child: platformViewRenderBox,
       );
@@ -45,7 +47,7 @@ void main() {
       final SemanticsHandle semanticsHandle = renderer.pipelineOwner.ensureSemantics(
           listener: () {
             ++semanticsUpdateCount;
-          }
+          },
       );
       layout(tree, phase: EnginePhase.flushSemantics);
       // Initial semantics update
@@ -68,5 +70,47 @@ void main() {
 
       semanticsHandle.dispose();
     });
+
+    test('mouse hover events are dispatched via PlatformViewController.dispatchPointerEvent', () {
+      layout(platformViewRenderBox);
+      pumpFrame(phase: EnginePhase.flushSemantics);
+
+      ui.window.onPointerDataPacket!(ui.PointerDataPacket(data: <ui.PointerData>[
+        _pointerData(ui.PointerChange.add, Offset.zero),
+        _pointerData(ui.PointerChange.hover, const Offset(10, 10)),
+        _pointerData(ui.PointerChange.remove, const Offset(10, 10)),
+      ]));
+
+      expect(fakePlatformViewController.dispatchedPointerEvents, isNotEmpty);
+    });
+
+    test('touch hover events are dispatched via PlatformViewController.dispatchPointerEvent', () {
+      layout(platformViewRenderBox);
+      pumpFrame(phase: EnginePhase.flushSemantics);
+
+      ui.window.onPointerDataPacket!(ui.PointerDataPacket(data: <ui.PointerData>[
+        _pointerData(ui.PointerChange.add, Offset.zero),
+        _pointerData(ui.PointerChange.hover, const Offset(10, 10)),
+        _pointerData(ui.PointerChange.remove, const Offset(10, 10)),
+      ]));
+
+      expect(fakePlatformViewController.dispatchedPointerEvents, isNotEmpty);
+    });
+
   }, skip: isBrowser); // TODO(yjbanov): fails on Web with obscured stack trace: https://github.com/flutter/flutter/issues/42770
+}
+
+ui.PointerData _pointerData(
+  ui.PointerChange change,
+  Offset logicalPosition, {
+  int device = 0,
+  PointerDeviceKind kind = PointerDeviceKind.mouse,
+}) {
+  return ui.PointerData(
+    change: change,
+    physicalX: logicalPosition.dx * ui.window.devicePixelRatio,
+    physicalY: logicalPosition.dy * ui.window.devicePixelRatio,
+    kind: kind,
+    device: device,
+  );
 }

@@ -1,11 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget wrap({ Widget child, ThemeData theme }) {
+Widget wrap({ required Widget child, ThemeData? theme }) {
   return MaterialApp(
     theme: theme,
     home: Center(
@@ -24,7 +24,7 @@ void main() {
       child: ExpandIcon(
         onPressed: (bool isExpanded) {
           expanded = !expanded;
-        }
+        },
       ),
     ));
     await tester.pumpAndSettle();
@@ -132,6 +132,45 @@ void main() {
     ));
     final RotationTransition rotation = tester.firstWidget(find.byType(RotationTransition));
     expect(rotation.turns.value, 0.5);
+  });
+
+  testWidgets('ExpandIcon default size is 24', (WidgetTester tester) async {
+    final ExpandIcon expandIcon =  ExpandIcon(
+      onPressed: (bool isExpanded) {},
+    );
+
+    await tester.pumpWidget(wrap(
+      child: expandIcon,
+    ));
+
+    final ExpandIcon icon = tester.firstWidget(find.byWidget(expandIcon));
+    expect(icon.size, 24);
+  });
+
+  testWidgets('ExpandIcon has the correct given size', (WidgetTester tester) async {
+    ExpandIcon expandIcon =  ExpandIcon(
+      size: 36,
+      onPressed: (bool isExpanded) {},
+    );
+
+    await tester.pumpWidget(wrap(
+      child: expandIcon,
+    ));
+
+    ExpandIcon icon = tester.firstWidget(find.byWidget(expandIcon));
+    expect(icon.size, 36);
+
+    expandIcon =  ExpandIcon(
+      size: 48,
+      onPressed: (bool isExpanded) {},
+    );
+
+    await tester.pumpWidget(wrap(
+      child: expandIcon,
+    ));
+
+    icon = tester.firstWidget(find.byWidget(expandIcon));
+    expect(icon.size, 48);
   });
 
   testWidgets('ExpandIcon has correct semantic hints', (WidgetTester tester) async {

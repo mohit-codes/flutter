@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class BackdropFilterPage extends StatefulWidget {
+  const BackdropFilterPage({Key key}) : super(key: key);
+
   @override
   _BackdropFilterPageState createState() => _BackdropFilterPageState();
 }
@@ -66,7 +68,7 @@ class _BackdropFilterPageState extends State<BackdropFilterPage> with TickerProv
       backgroundColor: Colors.grey,
       body: Stack(
         children: <Widget>[
-          Text('0' * 10000, style: TextStyle(color: Colors.yellow)),
+          Text('0' * 10000, style: const TextStyle(color: Colors.yellow)),
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -58,6 +58,8 @@ Widget toStyledText(String name, String text) {
 Widget toPlainText(String name, String text) => Text(name + ':' + text);
 
 class SpeakerSeparator extends StatelessWidget {
+  const SpeakerSeparator({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -65,26 +67,22 @@ class SpeakerSeparator extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 64.0),
       decoration: const BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color.fromARGB(24, 0, 0, 0))
-        )
+          bottom: BorderSide(color: Color.fromARGB(24, 0, 0, 0)),
+        ),
       ),
     );
   }
 }
 
 class StyledTextDemo extends StatefulWidget {
+  const StyledTextDemo({Key? key}) : super(key: key);
+
   @override
   _StyledTextDemoState createState() => _StyledTextDemoState();
 }
 
 class _StyledTextDemoState extends State<StyledTextDemo> {
-  @override
-  void initState() {
-    super.initState();
-    _toText = toStyledText;
-  }
-
-  _TextTransformer _toText;
+  _TextTransformer _toText = toStyledText;
 
   void _handleTap() {
     setState(() {
@@ -105,7 +103,7 @@ class _StyledTextDemoState extends State<StyledTextDemo> {
             .map<Widget>((List<String> nameAndText) => _toText(nameAndText[0], nameAndText[1]))
             .expand((Widget line) => <Widget>[
               line,
-              SpeakerSeparator(),
+              const SpeakerSeparator(),
             ])
             .toList()..removeLast(),
         ),
@@ -123,7 +121,7 @@ void main() {
       ),
       body: Material(
         color: Colors.grey.shade50,
-        child: StyledTextDemo(),
+        child: const StyledTextDemo(),
       ),
     ),
   ));

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('IconDataDiagnosticsProperty includes valueProperties in JSON', () {
     IconDataProperty property = IconDataProperty('foo', const IconData(101010));
-    final Map<String, Object> valueProperties = property.toJsonMap(const DiagnosticsSerializationDelegate())['valueProperties'];
+    final Map<String, Object> valueProperties = property.toJsonMap(const DiagnosticsSerializationDelegate())['valueProperties']! as Map<String, Object>;
     expect(valueProperties['codePoint'], 101010);
 
     property = IconDataProperty('foo', null);
-    final Map<String, Object> json = property.toJsonMap(const DiagnosticsSerializationDelegate());
+    final Map<String, Object?> json = property.toJsonMap(const DiagnosticsSerializationDelegate());
     expect(json.containsKey('valueProperties'), isFalse);
   });
 }

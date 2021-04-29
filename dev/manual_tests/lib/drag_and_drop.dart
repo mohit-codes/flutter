@@ -1,14 +1,14 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ExampleDragTarget extends StatefulWidget {
+  const ExampleDragTarget({Key key}) : super(key: key);
+
   @override
   ExampleDragTargetState createState() => ExampleDragTargetState();
 }
@@ -100,7 +100,7 @@ class ExampleDragSource extends StatelessWidget {
       size *= kHeavyMultiplier;
 
     final Widget contents = DefaultTextStyle(
-      style: Theme.of(context).textTheme.body1,
+      style: Theme.of(context).textTheme.bodyText2,
       textAlign: TextAlign.center,
       child: Dot(
         color: color,
@@ -115,7 +115,7 @@ class ExampleDragSource extends StatelessWidget {
     );
 
     Offset feedbackOffset;
-    DragAnchor anchor;
+    DragAnchorStrategy dragAnchorStrategy;
     if (!under) {
       feedback = Transform(
         transform: Matrix4.identity()
@@ -123,10 +123,10 @@ class ExampleDragSource extends StatelessWidget {
         child: feedback,
       );
       feedbackOffset = const Offset(0.0, -kFingerSize);
-      anchor = DragAnchor.pointer;
+      dragAnchorStrategy = pointerDragAnchorStrategy;
     } else {
       feedbackOffset = Offset.zero;
-      anchor = DragAnchor.child;
+      dragAnchorStrategy = childDragAnchorStrategy;
     }
 
     if (heavy) {
@@ -135,7 +135,7 @@ class ExampleDragSource extends StatelessWidget {
         child: contents,
         feedback: feedback,
         feedbackOffset: feedbackOffset,
-        dragAnchor: anchor,
+        dragAnchorStrategy: dragAnchorStrategy,
       );
     } else {
       return Draggable<Color>(
@@ -143,7 +143,7 @@ class ExampleDragSource extends StatelessWidget {
         child: contents,
         feedback: feedback,
         feedbackOffset: feedbackOffset,
-        dragAnchor: anchor,
+        dragAnchorStrategy: dragAnchorStrategy,
       );
     }
   }
@@ -176,7 +176,7 @@ class DashOutlineCirclePainter extends CustomPainter {
 }
 
 class MovableBall extends StatelessWidget {
-  const MovableBall(this.position, this.ballPosition, this.callback);
+  const MovableBall(this.position, this.ballPosition, this.callback, {Key key}) : super(key: key);
 
   final int position;
   final int ballPosition;
@@ -188,7 +188,7 @@ class MovableBall extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Widget ball = DefaultTextStyle(
-      style: Theme.of(context).primaryTextTheme.body1,
+      style: Theme.of(context).primaryTextTheme.bodyText2,
       textAlign: TextAlign.center,
       child: Dot(
         key: kBallKey,
@@ -198,10 +198,10 @@ class MovableBall extends StatelessWidget {
         child: const Center(child: Text('BALL')),
       ),
     );
-    final Widget dashedBall = Container(
+    const Widget dashedBall = SizedBox(
       width: kBallSize,
       height: kBallSize,
-      child: const CustomPaint(
+      child: CustomPaint(
         painter: DashOutlineCirclePainter()
       ),
     );
@@ -225,6 +225,8 @@ class MovableBall extends StatelessWidget {
 }
 
 class DragAndDropApp extends StatefulWidget {
+  const DragAndDropApp({Key key}) : super(key: key);
+
   @override
   DragAndDropAppState createState() => DragAndDropAppState();
 }
@@ -272,7 +274,7 @@ class DragAndDropAppState extends State<DragAndDropApp> {
           ),
           Expanded(
             child: Row(
-              children: <Widget>[
+              children: const <Widget>[
                 Expanded(child: ExampleDragTarget()),
                 Expanded(child: ExampleDragTarget()),
                 Expanded(child: ExampleDragTarget()),
@@ -297,13 +299,7 @@ class DragAndDropAppState extends State<DragAndDropApp> {
 }
 
 void main() {
-  if (Platform.isMacOS) {
-    // TODO(gspencergoog): Update this when TargetPlatform includes macOS. https://github.com/flutter/flutter/issues/31366
-    // See https://github.com/flutter/flutter/wiki/Desktop-shells#target-platform-override
-    debugDefaultTargetPlatformOverride = TargetPlatform.fuchsia;
-  }
-
-  runApp(MaterialApp(
+  runApp(const MaterialApp(
     title: 'Drag and Drop Flutter Demo',
     home: DragAndDropApp(),
   ));

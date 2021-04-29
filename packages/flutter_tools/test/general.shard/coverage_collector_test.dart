@@ -1,51 +1,141 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+// @dart = 2.8
 
-import 'package:flutter_tools/src/base/io.dart';
 import 'package:flutter_tools/src/test/coverage_collector.dart';
-import 'package:flutter_tools/src/vmservice.dart';
-import 'package:mockito/mockito.dart';
+import 'package:vm_service/vm_service.dart';
 
 import '../src/common.dart';
+import '../src/fake_vm_services.dart';
 
 void main() {
-  MockVMService mockVMService;
+  testWithoutContext('Coverage collector Can handle coverage SentinelException', () async {
+    final FakeVmServiceHost fakeVmServiceHost = FakeVmServiceHost(
+      requests: <VmServiceExpectation>[
+        FakeVmServiceRequest(
+          method: 'getVM',
+          jsonResponse: (VM.parse(<String, Object>{})
+            ..isolates = <IsolateRef>[
+              IsolateRef.parse(<String, Object>{
+                'id': '1'
+              }),
+            ]
+          ).toJson(),
+        ),
+        const FakeVmServiceRequest(
+          method: 'getScripts',
+          args: <String, Object>{
+            'isolateId': '1',
+          },
+          jsonResponse: <String, Object>{
+            'type': 'Sentinel'
+          }
+        )
+      ],
+    );
 
-  setUp(() {
-    mockVMService = MockVMService();
-  });
-
-  test('Coverage collector Can handle coverage sentinenl data', () async {
-    when(mockVMService.vm.isolates.first.invokeRpcRaw('getScripts', params: anyNamed('params')))
-      .thenAnswer((Invocation invocation) async {
-        return <String, Object>{'type': 'Sentinel', 'kind': 'Collected', 'valueAsString': '<collected>'};
-      });
-    final Map<String, Object> result = await collect(null, (String predicate) => true, connector: (Uri uri) async {
-      return mockVMService;
-    });
+    final Map<String, Object> result = await collect(
+      null,
+      (String predicate) => true,
+      connector: (Uri uri) async {
+        return fakeVmServiceHost.vmService;
+      },
+    );
 
     expect(result, <String, Object>{'type': 'CodeCoverage', 'coverage': <Object>[]});
+    expect(fakeVmServiceHost.hasRemainingExpectations, false);
   });
-}
 
-class MockVMService extends Mock implements VMService {
-  @override
-  final MockVM vm = MockVM();
-}
+  testWithoutContext('Coverage collector processes coverage and script data', () async {
+    final FakeVmServiceHost fakeVmServiceHost = FakeVmServiceHost(
+      requests: <VmServiceExpectation>[
+        FakeVmServiceRequest(
+          method: 'getVM',
+          jsonResponse: (VM.parse(<String, Object>{})
+            ..isolates = <IsolateRef>[
+              IsolateRef.parse(<String, Object>{
+                'id': '1'
+              }),
+            ]
+          ).toJson(),
+        ),
+        FakeVmServiceRequest(
+          method: 'getScripts',
+          args: <String, Object>{
+            'isolateId': '1',
+          },
+          jsonResponse: ScriptList(scripts: <ScriptRef>[
+            ScriptRef(uri: 'foo.dart', id: '1'),
+          ]).toJson(),
+        ),
+        FakeVmServiceRequest(
+          method: 'getSourceReport',
+          args: <String, Object>{
+            'isolateId': '1',
+            'reports': <Object>['Coverage'],
+            'scriptId': '1',
+            'forceCompile': true,
+          },
+          jsonResponse: SourceReport(
+            ranges: <SourceReportRange>[
+              SourceReportRange(
+                scriptIndex: 0,
+                startPos: 0,
+                endPos: 0,
+                compiled: true,
+                coverage: SourceReportCoverage(
+                  hits: <int>[],
+                  misses: <int>[],
+                ),
+              ),
+            ],
+            scripts: <ScriptRef>[
+              ScriptRef(
+                uri: 'foo.dart',
+                id: '1',
+              ),
+            ],
+          ).toJson(),
+        ),
+        FakeVmServiceRequest(
+          method: 'getObject',
+          args: <String, Object>{
+            'isolateId': '1',
+            'objectId': '1',
+          },
+          jsonResponse: Script(
+            uri: 'foo.dart',
+            id: '1',
+            library: LibraryRef(name: '', id: '1111', uri: 'foo.dart'),
+            tokenPosTable: <List<int>>[],
+          ).toJson(),
+        ),
+      ],
+    );
 
-class MockVM extends Mock implements VM {
-  @override
-  final List<MockIsolate> isolates = <MockIsolate>[ MockIsolate() ];
-}
+    final Map<String, Object> result = await collect(
+      null,
+      (String predicate) => true,
+      connector: (Uri uri) async {
+        return fakeVmServiceHost.vmService;
+      },
+    );
 
-class MockIsolate extends Mock implements Isolate {}
-
-class MockProcess extends Mock implements Process {
-  final Completer<int>completer = Completer<int>();
-
-  @override
-  Future<int> get exitCode => completer.future;
+    expect(result, <String, Object>{'type': 'CodeCoverage', 'coverage': <Object>[
+      <String, Object>{
+        'source': 'foo.dart',
+        'script': <String, Object>{
+          'type': '@Script',
+          'fixedId': true,
+          'id': 'libraries/1/scripts/foo.dart',
+          'uri': 'foo.dart',
+          '_kind': 'library',
+        },
+        'hits': <Object>[],
+      },
+    ]});
+    expect(fakeVmServiceHost.hasRemainingExpectations, false);
+  });
 }

@@ -1,6 +1,7 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 
 import 'dart:typed_data';
 
@@ -23,12 +24,12 @@ abstract class MessageCodec<T> {
   /// Encodes the specified [message] in binary.
   ///
   /// Returns null if the message is null.
-  ByteData encodeMessage(T message);
+  ByteData? encodeMessage(T message);
 
   /// Decodes the specified [message] from binary.
   ///
   /// Returns null if the message is null.
-  T decodeMessage(ByteData message);
+  T? decodeMessage(ByteData? message);
 }
 
 /// An command object representing the invocation of a named method.
@@ -45,10 +46,14 @@ class MethodCall {
   /// The arguments for the method.
   ///
   /// Must be a valid value for the [MethodCodec] used.
+  ///
+  /// This property is `dynamic`, which means type-checking is skipped when accessing
+  /// this property. To minimize the risk of type errors at runtime, the value should
+  /// be cast to `Object?` when accessed.
   final dynamic arguments;
 
   @override
-  String toString() => '$runtimeType($method, $arguments)';
+  String toString() => '${objectRuntimeType(this, 'MethodCall')}($method, $arguments)';
 }
 
 /// A codec for method calls and enveloped results.
@@ -66,22 +71,28 @@ abstract class MethodCodec {
   ByteData encodeMethodCall(MethodCall methodCall);
 
   /// Decodes the specified [methodCall] from binary.
-  MethodCall decodeMethodCall(ByteData methodCall);
+  MethodCall decodeMethodCall(ByteData? methodCall);
 
   /// Decodes the specified result [envelope] from binary.
   ///
   /// Throws [PlatformException], if [envelope] represents an error, otherwise
   /// returns the enveloped result.
+  ///
+  /// The type returned from [decodeEnvelope] is `dynamic` (not `Object?`),
+  /// which means *no type checking is performed on its return value*. It is
+  /// strongly recommended that the return value be immediately cast to a known
+  /// type to prevent runtime errors due to typos that the type checker could
+  /// otherwise catch.
   dynamic decodeEnvelope(ByteData envelope);
 
   /// Encodes a successful [result] into a binary envelope.
-  ByteData encodeSuccessEnvelope(dynamic result);
+  ByteData encodeSuccessEnvelope(Object? result);
 
   /// Encodes an error result into a binary envelope.
   ///
-  /// The specified error [code], human-readable error [message], and error
+  /// The specified error [code], human-readable error [message] and error
   /// [details] correspond to the fields of [PlatformException].
-  ByteData encodeErrorEnvelope({ @required String code, String message, dynamic details });
+  ByteData encodeErrorEnvelope({ required String code, String? message, Object? details});
 }
 
 
@@ -103,22 +114,42 @@ class PlatformException implements Exception {
   /// [message], and with the optional error [details] which must be a valid
   /// value for the [MethodCodec] involved in the interaction.
   PlatformException({
-    @required this.code,
+    required this.code,
     this.message,
     this.details,
+    this.stacktrace,
   }) : assert(code != null);
 
   /// An error code.
   final String code;
 
   /// A human-readable error message, possibly null.
-  final String message;
+  final String? message;
 
   /// Error details, possibly null.
+  ///
+  /// This property is `dynamic`, which means type-checking is skipped when accessing
+  /// this property. To minimize the risk of type errors at runtime, the value should
+  /// be cast to `Object?` when accessed.
   final dynamic details;
 
+  /// Native stacktrace for the error, possibly null.
+  ///
+  /// This contains the native platform stack trace, not the Dart stack trace.
+  ///
+  /// The stack trace for Dart exceptions can be obtained using try-catch blocks, for example:
+  ///
+  /// ```dart
+  /// try {
+  ///   ...
+  /// } catch (e, stacktrace) {
+  ///   print(stacktrace);
+  /// }
+  /// ```
+  final String? stacktrace;
+
   @override
-  String toString() => 'PlatformException($code, $message, $details)';
+  String toString() => 'PlatformException($code, $message, $details, $stacktrace)';
 }
 
 /// Thrown to indicate that a platform interaction failed to find a handling
@@ -137,7 +168,7 @@ class MissingPluginException implements Exception {
   MissingPluginException([this.message]);
 
   /// A human-readable error message, possibly null.
-  final String message;
+  final String? message;
 
   @override
   String toString() => 'MissingPluginException($message)';

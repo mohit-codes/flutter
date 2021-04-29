@@ -1,15 +1,13 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:collection';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'actions.dart';
-import 'binding.dart';
 import 'focus_manager.dart';
 import 'focus_scope.dart';
 import 'framework.dart';
@@ -26,20 +24,20 @@ import 'inherited_notifier.dart';
 ///
 /// See also:
 ///
-///  - [ShortcutManager], which uses [LogicalKeySet] (a [KeySet] subclass) to
+///  * [ShortcutManager], which uses [LogicalKeySet] (a [KeySet] subclass) to
 ///    define its key map.
-class KeySet<T extends KeyboardKey> extends Diagnosticable {
+@immutable
+class KeySet<T extends KeyboardKey> {
   /// A constructor for making a [KeySet] of up to four keys.
   ///
   /// If you need a set of more than four keys, use [KeySet.fromSet].
   ///
-  /// The `key1` parameter must not be null. The same [KeyboardKey] may
-  /// not be appear more than once in the set.
+  /// The same [KeyboardKey] may not be appear more than once in the set.
   KeySet(
     T key1, [
-    T key2,
-    T key3,
-    T key4,
+    T? key2,
+    T? key3,
+    T? key4,
   ])  : assert(key1 != null),
         _keys = HashSet<T>()..add(key1) {
     int count = 1;
@@ -71,18 +69,15 @@ class KeySet<T extends KeyboardKey> extends Diagnosticable {
   ///
   /// Do not mutate the `keys` set after passing it to this object.
   ///
-  /// The `keys` set must not be null, contain nulls, or be empty.
+  /// The `keys` set must not be empty.
   KeySet.fromSet(Set<T> keys)
       : assert(keys != null),
         assert(keys.isNotEmpty),
         assert(!keys.contains(null)),
         _keys = HashSet<T>.from(keys);
 
-  /// Returns an unmodifiable view of the [KeyboardKey]s in this [KeySet].
-  Set<T> get keys => UnmodifiableSetView<T>(_keys);
-  // This needs to be a hash set to be sure that the hashCode accessor returns
-  // consistent results. LinkedHashSet (the default Set implementation) depends
-  // upon insertion order, and HashSet does not.
+  /// Returns a copy of the [KeyboardKey]s in this [KeySet].
+  Set<T> get keys => _keys.toSet();
   final HashSet<T> _keys;
 
   @override
@@ -90,65 +85,527 @@ class KeySet<T extends KeyboardKey> extends Diagnosticable {
     if (other.runtimeType != runtimeType) {
       return false;
     }
-    final KeySet<T> typedOther = other;
-    return setEquals<T>(_keys, typedOther._keys);
+    return other is KeySet<T>
+        && setEquals<T>(other._keys, _keys);
   }
 
-  @override
-  int get hashCode {
-    return hashList(_keys);
-  }
 
+  // Cached hash code value. Improves [hashCode] performance by 27%-900%,
+  // depending on key set size and read/write ratio.
   @override
-  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-    super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<Set<T>>('keys', _keys));
+  late final int hashCode = _computeHashCode(_keys);
+
+  // Arrays used to temporarily store hash codes for sorting.
+  static final List<int> _tempHashStore3 = <int>[0, 0, 0]; // used to sort exactly 3 keys
+  static final List<int> _tempHashStore4 = <int>[0, 0, 0, 0]; // used to sort exactly 4 keys
+  static int _computeHashCode<T>(Set<T> keys) {
+    // Compute order-independent hash and cache it.
+    final int length = keys.length;
+    final Iterator<T> iterator = keys.iterator;
+
+    // There's always at least one key. Just extract it.
+    iterator.moveNext();
+    final int h1 = iterator.current.hashCode;
+
+    if (length == 1) {
+      // Don't do anything fancy if there's exactly one key.
+      return h1;
+    }
+
+    iterator.moveNext();
+    final int h2 = iterator.current.hashCode;
+    if (length == 2) {
+      // No need to sort if there's two keys, just compare them.
+      return h1 < h2
+        ? hashValues(h1, h2)
+        : hashValues(h2, h1);
+    }
+
+    // Sort key hash codes and feed to hashList to ensure the aggregate
+    // hash code does not depend on the key order.
+    final List<int> sortedHashes = length == 3
+      ? _tempHashStore3
+      : _tempHashStore4;
+    sortedHashes[0] = h1;
+    sortedHashes[1] = h2;
+    iterator.moveNext();
+    sortedHashes[2] = iterator.current.hashCode;
+    if (length == 4) {
+      iterator.moveNext();
+      sortedHashes[3] = iterator.current.hashCode;
+    }
+    sortedHashes.sort();
+    return hashList(sortedHashes);
   }
+}
+
+/// An interface to define the keyboard key combination to trigger a shortcut.
+///
+/// [ShortcutActivator]s are used by [Shortcuts] widgets, and are mapped to
+/// [Intent]s, the intended behavior that the key combination should trigger.
+/// When a [Shortcuts] widget receives a key event, its [ShortcutManager] looks
+/// up the first matching [ShortcutActivator], and signals the corresponding
+/// [Intent], which might trigger an action as defined by a hierarchy of
+/// [Actions] widgets. For a detailed introduction on the mechanism and use of
+/// the shortcut-action system, see [Actions].
+///
+/// The matching [ShortcutActivator] is looked up in the following way:
+///
+///  * Find the registered [ShortcutActivator]s whose [triggers] contain the
+///    incoming event.
+///  * Of the previous list, finds the first activator whose [accepts] returns
+///    true in the order of insertion.
+///
+/// See also:
+///
+///  * [SingleActivator], an implementation that represents a single key combined
+///    with modifiers (control, shift, alt, meta).
+///  * [LogicalKeySet], an implementation that requires one or more
+///    [LogicalKeyboardKey]s to be pressed at the same time. Prefer
+///    [SingleActivator] when possible.
+abstract class ShortcutActivator {
+  /// Abstract const constructor. This constructor enables subclasses to provide
+  /// const constructors so that they can be used in const expressions.
+  const ShortcutActivator();
+
+  /// All the keys that might be the final event to trigger this shortcut.
+  ///
+  /// For example, for `Ctrl-A`, the KeyA is the only trigger, while Ctrl is not,
+  /// because the shortcut should only work by pressing KeyA *after* Ctrl, but
+  /// not before. For `Ctrl-A-E`, on the other hand, both KeyA and KeyE should be
+  /// triggers, since either of them is allowed to trigger.
+  ///
+  /// The trigger keys are used as the first-pass filter for incoming events, as
+  /// [Intent]s are stored in a [Map] and indexed by trigger keys. Subclasses
+  /// should make sure that the return value of this method does not change
+  /// throughout the lifespan of this object.
+  Iterable<LogicalKeyboardKey> get triggers;
+
+  /// Whether the triggering `event` and the keyboard `state` at the time of the
+  /// event meet required conditions, providing that the event is a triggering
+  /// event.
+  ///
+  /// For example, for `Ctrl-A`, it has to check if the event is a
+  /// [RawKeyDownEvent], if either side of the Ctrl key is pressed, and none of
+  /// the Shift keys, Alt keys, or Meta keys are pressed; it doesn't have to
+  /// check if KeyA is pressed, since it's already guaranteed.
+  ///
+  /// This method must not cause any side effects for the `state`. Typically
+  /// this is only used to query whether [RawKeyboard.keysPressed] contains
+  /// a key.
+  ///
+  /// See also:
+  ///
+  ///  * [LogicalKeyboardKey.collapseSynonyms], which helps deciding whether a
+  ///    modifier key is pressed when the side variation is not important.
+  bool accepts(RawKeyEvent event, RawKeyboard state);
+
+  /// Returns a description of the key set that is short and readable.
+  ///
+  /// Intended to be used in debug mode for logging purposes.
+  String debugDescribeKeys();
 }
 
 /// A set of [LogicalKeyboardKey]s that can be used as the keys in a map.
 ///
-/// A key set contains the keys that are down simultaneously to represent a
-/// shortcut.
+/// [LogicalKeySet] can be used as a [ShortcutActivator]. It is not recommended
+/// to use [LogicalKeySet] for a common shortcut such as `Delete` or `Ctrl+C`,
+/// prefer [SingleActivator] when possible, whose behavior more closely resembles
+/// that of typical platforms.
 ///
-/// This is mainly used by [ShortcutManager] to allow the definition of shortcut
-/// mappings.
+/// When used as a [ShortcutActivator], [LogicalKeySet] will activate the intent
+/// when all [keys] are pressed, and no others, except that modifier keys are
+/// considered without considering sides (e.g. control left and control right are
+/// considered the same).
 ///
-/// This is a thin wrapper around a [Set], but changes the equality comparison
-/// from an identity comparison to a contents comparison so that non-identical
-/// sets with the same keys in them will compare as equal.
-class LogicalKeySet extends KeySet<LogicalKeyboardKey> {
+/// {@tool dartpad --template=stateful_widget_scaffold_center}
+/// In the following example, the counter is increased when the following key
+/// sequences are pressed:
+///
+///  * Control left, then C.
+///  * Control right, then C.
+///  * C, then Control left.
+///
+/// But not when:
+///
+///  * Control left, then A, then C.
+///
+/// ```dart imports
+/// import 'package:flutter/services.dart';
+/// ```
+///
+/// ```dart preamble
+/// class IncrementIntent extends Intent {
+///   const IncrementIntent();
+/// }
+/// ```
+///
+/// ```dart
+/// int count = 0;
+///
+/// @override
+/// Widget build(BuildContext context) {
+///   return Shortcuts(
+///     shortcuts: <ShortcutActivator, Intent>{
+///       LogicalKeySet(LogicalKeyboardKey.keyC, LogicalKeyboardKey.controlLeft): const IncrementIntent(),
+///     },
+///     child: Actions(
+///       actions: <Type, Action<Intent>>{
+///         IncrementIntent: CallbackAction<IncrementIntent>(
+///           onInvoke: (IncrementIntent intent) => setState(() {
+///             count = count + 1;
+///           }),
+///         ),
+///       },
+///       child: Focus(
+///         autofocus: true,
+///         child: Column(
+///           children: <Widget>[
+///             const Text('Add to the counter by pressing Ctrl+C'),
+///             Text('count: $count'),
+///           ],
+///         ),
+///       ),
+///     ),
+///   );
+/// }
+/// ```
+/// {@end-tool}
+///
+/// This is also a thin wrapper around a [Set], but changes the equality
+/// comparison from an identity comparison to a contents comparison so that
+/// non-identical sets with the same keys in them will compare as equal.
+
+class LogicalKeySet extends KeySet<LogicalKeyboardKey> with Diagnosticable
+    implements ShortcutActivator {
   /// A constructor for making a [LogicalKeySet] of up to four keys.
   ///
   /// If you need a set of more than four keys, use [LogicalKeySet.fromSet].
   ///
-  /// The `key1` parameter must not be null. The same [LogicalKeyboardKey] may
-  /// not be appear more than once in the set.
+  /// The same [LogicalKeyboardKey] may not be appear more than once in the set.
   LogicalKeySet(
     LogicalKeyboardKey key1, [
-    LogicalKeyboardKey key2,
-    LogicalKeyboardKey key3,
-    LogicalKeyboardKey key4,
+    LogicalKeyboardKey? key2,
+    LogicalKeyboardKey? key3,
+    LogicalKeyboardKey? key4,
   ]) : super(key1, key2, key3, key4);
 
   /// Create  a [LogicalKeySet] from a set of [LogicalKeyboardKey]s.
   ///
   /// Do not mutate the `keys` set after passing it to this object.
-  ///
-  /// The `keys` must not be null.
   LogicalKeySet.fromSet(Set<LogicalKeyboardKey> keys) : super.fromSet(keys);
+
+  @override
+  Iterable<LogicalKeyboardKey> get triggers => _triggers;
+  late final Set<LogicalKeyboardKey> _triggers = keys.expand(
+    (LogicalKeyboardKey key) => _unmapSynonyms[key] ?? <LogicalKeyboardKey>[key],
+  ).toSet();
+
+  @override
+  bool accepts(RawKeyEvent event, RawKeyboard state) {
+    final Set<LogicalKeyboardKey> collapsedRequired = LogicalKeyboardKey.collapseSynonyms(keys);
+    final Set<LogicalKeyboardKey> collapsedPressed = LogicalKeyboardKey.collapseSynonyms(state.keysPressed);
+    final bool keysEqual = collapsedRequired.difference(collapsedPressed).isEmpty
+      && collapsedRequired.length == collapsedPressed.length;
+    return event is RawKeyDownEvent && keysEqual;
+  }
+
+  static final Set<LogicalKeyboardKey> _modifiers = <LogicalKeyboardKey>{
+    LogicalKeyboardKey.alt,
+    LogicalKeyboardKey.control,
+    LogicalKeyboardKey.meta,
+    LogicalKeyboardKey.shift,
+  };
+  static final Map<LogicalKeyboardKey, List<LogicalKeyboardKey>> _unmapSynonyms = <LogicalKeyboardKey, List<LogicalKeyboardKey>>{
+    LogicalKeyboardKey.control: <LogicalKeyboardKey>[LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.controlRight],
+    LogicalKeyboardKey.shift: <LogicalKeyboardKey>[LogicalKeyboardKey.shiftLeft, LogicalKeyboardKey.shiftRight],
+    LogicalKeyboardKey.alt: <LogicalKeyboardKey>[LogicalKeyboardKey.altLeft, LogicalKeyboardKey.altRight],
+    LogicalKeyboardKey.meta: <LogicalKeyboardKey>[LogicalKeyboardKey.metaLeft, LogicalKeyboardKey.metaRight],
+  };
+
+  /// Returns a description of the key set that is short and readable.
+  ///
+  /// Intended to be used in debug mode for logging purposes.
+  @override
+  String debugDescribeKeys() {
+    final List<LogicalKeyboardKey> sortedKeys = keys.toList()..sort(
+            (LogicalKeyboardKey a, LogicalKeyboardKey b) {
+          // Put the modifiers first. If it has a synonym, then it's something
+          // like shiftLeft, altRight, etc.
+          final bool aIsModifier = a.synonyms.isNotEmpty || _modifiers.contains(a);
+          final bool bIsModifier = b.synonyms.isNotEmpty || _modifiers.contains(b);
+          if (aIsModifier && !bIsModifier) {
+            return -1;
+          } else if (bIsModifier && !aIsModifier) {
+            return 1;
+          }
+          return a.debugName!.compareTo(b.debugName!);
+        },
+    );
+    return sortedKeys.map<String>((LogicalKeyboardKey key) => key.debugName.toString()).join(' + ');
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<Set<LogicalKeyboardKey>>('keys', _keys, description: debugDescribeKeys()));
+  }
+}
+
+/// A [DiagnosticsProperty] which handles formatting a `Map<LogicalKeySet,
+/// Intent>` (the same type as the [Shortcuts.shortcuts] property) so that its
+/// diagnostic output is human-readable.
+class ShortcutMapProperty extends DiagnosticsProperty<Map<ShortcutActivator, Intent>> {
+  /// Create a diagnostics property for `Map<ShortcutActivator, Intent>` objects,
+  /// which are the same type as the [Shortcuts.shortcuts] property.
+  ShortcutMapProperty(
+    String name,
+    Map<ShortcutActivator, Intent> value, {
+    bool showName = true,
+    Object defaultValue = kNoDefaultValue,
+    DiagnosticLevel level = DiagnosticLevel.info,
+    String? description,
+  }) : assert(showName != null),
+       assert(level != null),
+       super(
+         name,
+         value,
+         showName: showName,
+         defaultValue: defaultValue,
+         level: level,
+         description: description,
+       );
+
+  @override
+  Map<ShortcutActivator, Intent> get value => super.value!;
+
+  @override
+  String valueToString({TextTreeConfiguration? parentConfiguration}) {
+    return '{${value.keys.map<String>((ShortcutActivator keySet) => '{${keySet.debugDescribeKeys()}}: ${value[keySet]}').join(', ')}}';
+  }
+}
+
+/// A shortcut key combination of a single key and modifiers.
+///
+/// This [ShortcutActivator] implements typical shortcuts such as:
+///
+///  * ArrowLeft
+///  * Shift + Delete
+///  * Control + Alt + Meta + Shift + A
+///
+/// More specifically, it creates shortcut key combinations that are composed of a
+/// [trigger] key, and zero, some, or all of the four modifiers (control, shift,
+/// alt, meta). The shortcut is activated when the following conditions are met:
+///
+///  * The incoming event is a down event for a [trigger] key.
+///  * If [control] is true, then at least one control key must be held.
+///    Otherwise, no control keys must be held.
+///  * Similar conditions apply for the [alt], [shift], and [meta] keys.
+///
+/// This resembles the typical behavior of most operating systems, and handles
+/// modifier keys differently from [LogicalKeySet] in the following way:
+///
+///  * [SingleActivator]s allow additional non-modifier keys being pressed in
+///    order to activate the shortcut. For example, pressing key X while holding
+///    ControlLeft *and key A* will be accepted by
+///    `SingleActivator(LogicalKeyboardKey.keyX, control: true)`.
+///  * [SingleActivator]s do not consider modifiers to be a trigger key. For
+///    example, pressing ControlLeft while holding key X *will not* activate a
+///    `SingleActivator(LogicalKeyboardKey.keyX, control: true)`.
+class SingleActivator with Diagnosticable implements ShortcutActivator {
+  /// Create an activator of a trigger key and modifiers.
+  ///
+  /// The `trigger` should be the non-modifier key that is pressed after all the
+  /// modifiers, such as [LogicalKeyboardKey.keyC] as in `Ctrl+C`. It must not be
+  /// a modifier key (sided or unsided).
+  ///
+  /// The `control`, `shift`, `alt`, and `meta` flags represent whether
+  /// the respect modifier keys should be held (true) or released (false)
+  ///
+  /// {@tool dartpad --template=stateful_widget_scaffold_center}
+  /// In the following example, the shortcut `Control + C` increases the counter:
+  ///
+  /// ```dart imports
+  /// import 'package:flutter/services.dart';
+  /// ```
+  ///
+  /// ```dart preamble
+  /// class IncrementIntent extends Intent {
+  ///   const IncrementIntent();
+  /// }
+  /// ```
+  ///
+  /// ```dart
+  /// int count = 0;
+  ///
+  /// @override
+  /// Widget build(BuildContext context) {
+  ///   return Shortcuts(
+  ///     shortcuts: const <ShortcutActivator, Intent>{
+  ///       SingleActivator(LogicalKeyboardKey.keyC, control: true): IncrementIntent(),
+  ///     },
+  ///     child: Actions(
+  ///       actions: <Type, Action<Intent>>{
+  ///         IncrementIntent: CallbackAction<IncrementIntent>(
+  ///           onInvoke: (IncrementIntent intent) => setState(() {
+  ///             count = count + 1;
+  ///           }),
+  ///         ),
+  ///       },
+  ///       child: Focus(
+  ///         autofocus: true,
+  ///         child: Column(
+  ///           children: <Widget>[
+  ///             const Text('Add to the counter by pressing Ctrl+C'),
+  ///             Text('count: $count'),
+  ///           ],
+  ///         ),
+  ///       ),
+  ///     ),
+  ///   );
+  /// }
+  /// ```
+  /// {@end-tool}
+  const SingleActivator(
+    this.trigger, {
+    this.control = false,
+    this.shift = false,
+    this.alt = false,
+    this.meta = false,
+  }) : // The enumerated check with `identical` is cumbersome but the only way
+       // since const constructors can not call functions such as `==` or
+       // `Set.contains`. Checking with `identical` is sufficient since
+       // `LogicalKeyboardKey` only provides cached values.
+       assert(
+         !identical(trigger, LogicalKeyboardKey.control) &&
+             !identical(trigger, LogicalKeyboardKey.controlLeft) &&
+             !identical(trigger, LogicalKeyboardKey.controlRight) &&
+             !identical(trigger, LogicalKeyboardKey.shift) &&
+             !identical(trigger, LogicalKeyboardKey.shiftLeft) &&
+             !identical(trigger, LogicalKeyboardKey.shiftRight) &&
+             !identical(trigger, LogicalKeyboardKey.alt) &&
+             !identical(trigger, LogicalKeyboardKey.altLeft) &&
+             !identical(trigger, LogicalKeyboardKey.altRight) &&
+             !identical(trigger, LogicalKeyboardKey.meta) &&
+             !identical(trigger, LogicalKeyboardKey.metaLeft) &&
+             !identical(trigger, LogicalKeyboardKey.metaRight),
+       );
+
+  /// The non-modifier key of the shortcut that is pressed after all modifiers
+  /// to activate the shortcut.
+  ///
+  /// For example, for `Control + C`, [trigger] should be
+  /// [LogicalKeyboardKey.keyC].
+  final LogicalKeyboardKey trigger;
+
+  /// Whether either (or both) control keys should be held for [trigger] to
+  /// activate the shortcut.
+  ///
+  /// If false, then all control keys must be released when the event is received
+  /// in order to activate the shortcut.
+  ///
+  /// See also:
+  ///
+  ///  * [LogicalKeyboardKey.controlLeft], [LogicalKeyboardKey.controlRight].
+  final bool control;
+
+  /// Whether either (or both) shift keys should be held for [trigger] to
+  /// activate the shortcut.
+  ///
+  /// If false, then all shift keys must be released when the event is received
+  /// in order to activate the shortcut.
+  ///
+  /// See also:
+  ///
+  ///  * [LogicalKeyboardKey.shiftLeft], [LogicalKeyboardKey.shiftRight].
+  final bool shift;
+
+  /// Whether either (or both) alt keys should be held for [trigger] to
+  /// activate the shortcut.
+  ///
+  /// If false, then all alt keys must be released when the event is received
+  /// in order to activate the shortcut.
+  ///
+  /// See also:
+  ///
+  ///  * [LogicalKeyboardKey.altLeft], [LogicalKeyboardKey.altRight].
+  final bool alt;
+
+  /// Whether either (or both) meta keys should be held for [trigger] to
+  /// activate the shortcut.
+  ///
+  /// If false, then all meta keys must be released when the event is received
+  /// in order to activate the shortcut.
+  ///
+  /// See also:
+  ///
+  ///  * [LogicalKeyboardKey.metaLeft], [LogicalKeyboardKey.metaRight].
+  final bool meta;
+
+  @override
+  Iterable<LogicalKeyboardKey> get triggers sync* {
+    yield trigger;
+  }
+
+  @override
+  bool accepts(RawKeyEvent event, RawKeyboard state) {
+    final Set<LogicalKeyboardKey> pressed = state.keysPressed;
+    return event is RawKeyDownEvent
+      && (control == (pressed.contains(LogicalKeyboardKey.controlLeft) || pressed.contains(LogicalKeyboardKey.controlRight)))
+      && (shift == (pressed.contains(LogicalKeyboardKey.shiftLeft) || pressed.contains(LogicalKeyboardKey.shiftRight)))
+      && (alt == (pressed.contains(LogicalKeyboardKey.altLeft) || pressed.contains(LogicalKeyboardKey.altRight)))
+      && (meta == (pressed.contains(LogicalKeyboardKey.metaLeft) || pressed.contains(LogicalKeyboardKey.metaRight)));
+  }
+
+  /// Returns a short and readable description of the key combination.
+  ///
+  /// Intended to be used in debug mode for logging purposes. In release mode,
+  /// [debugDescribeKeys] returns an empty string.
+  @override
+  String debugDescribeKeys() {
+    String result = '';
+    assert(() {
+      final List<String> keys = <String>[
+        if (control) 'Control',
+        if (alt) 'Alt',
+        if (meta) 'Meta',
+        if (shift) 'Shift',
+        trigger.debugName ?? trigger.toStringShort(),
+      ];
+      result = keys.join(' + ');
+      return true;
+    }());
+    return result;
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<String>('keys', debugDescribeKeys()));
+  }
+}
+
+class _ActivatorIntentPair with Diagnosticable {
+  const _ActivatorIntentPair(this.activator, this.intent);
+  final ShortcutActivator activator;
+  final Intent intent;
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(DiagnosticsProperty<String>('activator', activator.debugDescribeKeys()));
+    properties.add(DiagnosticsProperty<Intent>('intent', intent));
+  }
 }
 
 /// A manager of keyboard shortcut bindings.
 ///
 /// A [ShortcutManager] is obtained by calling [Shortcuts.of] on the context of
 /// the widget that you want to find a manager for.
-class ShortcutManager extends ChangeNotifier with DiagnosticableMixin {
+class ShortcutManager extends ChangeNotifier with Diagnosticable {
   /// Constructs a [ShortcutManager].
-  ///
-  /// The [shortcuts] argument must not  be null.
   ShortcutManager({
-    Map<LogicalKeySet, Intent> shortcuts = const <LogicalKeySet, Intent>{},
+    Map<ShortcutActivator, Intent> shortcuts = const <ShortcutActivator, Intent>{},
     this.modal = false,
   })  : assert(shortcuts != null),
         _shortcuts = shortcuts;
@@ -156,95 +613,315 @@ class ShortcutManager extends ChangeNotifier with DiagnosticableMixin {
   /// True if the [ShortcutManager] should not pass on keys that it doesn't
   /// handle to any key-handling widgets that are ancestors to this one.
   ///
-  /// Setting [modal] to true is the equivalent of always handling any key given
-  /// to it, even if that key doesn't appear in the [shortcuts] map. Keys that
-  /// don't appear in the map will be dropped.
+  /// Setting [modal] to true will prevent any key event given to this manager
+  /// from being given to any ancestor managers, even if that key doesn't appear
+  /// in the [shortcuts] map.
+  ///
+  /// The net effect of setting `modal` to true is to return
+  /// [KeyEventResult.skipRemainingHandlers] from [handleKeypress] if it does
+  /// not exist in the shortcut map, instead of returning
+  /// [KeyEventResult.ignored].
   final bool modal;
 
   /// Returns the shortcut map.
   ///
   /// When the map is changed, listeners to this manager will be notified.
   ///
-  /// The returned [LogicalKeyMap] should not be modified.
-  Map<LogicalKeySet, Intent> get shortcuts => _shortcuts;
-  Map<LogicalKeySet, Intent> _shortcuts;
-  set shortcuts(Map<LogicalKeySet, Intent> value) {
-    if (!mapEquals<LogicalKeySet, Intent>(_shortcuts, value)) {
+  /// The returned map should not be modified.
+  Map<ShortcutActivator, Intent> get shortcuts => _shortcuts;
+  Map<ShortcutActivator, Intent> _shortcuts = <ShortcutActivator, Intent>{};
+  set shortcuts(Map<ShortcutActivator, Intent> value) {
+    assert(value != null);
+    if (!mapEquals<ShortcutActivator, Intent>(_shortcuts, value)) {
       _shortcuts = value;
+      _indexedShortcutsCache = null;
       notifyListeners();
     }
   }
 
-  /// Handles a key pressed `event` in the given `context`.
+  static Map<LogicalKeyboardKey, List<_ActivatorIntentPair>> _indexShortcuts(Map<ShortcutActivator, Intent> source) {
+    final Map<LogicalKeyboardKey, List<_ActivatorIntentPair>> result = <LogicalKeyboardKey, List<_ActivatorIntentPair>>{};
+    source.forEach((ShortcutActivator activator, Intent intent) {
+      for (final LogicalKeyboardKey trigger in activator.triggers) {
+        result.putIfAbsent(trigger, () => <_ActivatorIntentPair>[])
+          .add(_ActivatorIntentPair(activator, intent));
+      }
+    });
+    return result;
+  }
+  Map<LogicalKeyboardKey, List<_ActivatorIntentPair>> get _indexedShortcuts {
+    return _indexedShortcutsCache ??= _indexShortcuts(_shortcuts);
+  }
+  Map<LogicalKeyboardKey, List<_ActivatorIntentPair>>? _indexedShortcutsCache;
+
+  /// Returns the [Intent], if any, that matches the current set of pressed
+  /// keys.
   ///
-  /// The optional `keysPressed` argument provides an override to keys that the
-  /// [RawKeyboard] reports. If not specified, uses [RawKeyboard.keysPressed]
-  /// instead.
+  /// Returns null if no intent matches the current set of pressed keys.
+  ///
+  /// Defaults to a set derived from [RawKeyboard.keysPressed] if `keysPressed`
+  /// is not supplied.
+  Intent? _find(RawKeyEvent event, RawKeyboard state) {
+    final List<_ActivatorIntentPair>? candidates = _indexedShortcuts[event.logicalKey];
+    if (candidates == null)
+      return null;
+    for (final _ActivatorIntentPair activatorIntent in candidates) {
+      if (activatorIntent.activator.accepts(event, state)) {
+        return activatorIntent.intent;
+      }
+    }
+    return null;
+  }
+
+  /// Handles a key press `event` in the given `context`.
+  ///
+  /// If a key mapping is found, then the associated action will be invoked using
+  /// the [Intent] activated by the [ShortcutActivator] in the [shortcuts] map,
+  /// and the currently focused widget's context (from
+  /// [FocusManager.primaryFocus]).
+  ///
+  /// Returns a [KeyEventResult.handled] if an action was invoked, otherwise a
+  /// [KeyEventResult.skipRemainingHandlers] if [modal] is true, or if it maps
+  /// to a [DoNothingAction] with [DoNothingAction.consumesKey] set to false,
+  /// and in all other cases returns [KeyEventResult.ignored].
+  ///
+  /// In order for an action to be invoked (and [KeyEventResult.handled]
+  /// returned), a pressed [KeySet] must be mapped to an [Intent], the [Intent]
+  /// must be mapped to an [Action], and the [Action] must be enabled.
   @protected
-  bool handleKeypress(
-    BuildContext context,
-    RawKeyEvent event, {
-    LogicalKeySet keysPressed,
-  }) {
+  KeyEventResult handleKeypress(BuildContext context, RawKeyEvent event) {
     if (event is! RawKeyDownEvent) {
-      return false;
+      return KeyEventResult.ignored;
     }
     assert(context != null);
-    final LogicalKeySet keySet = keysPressed ?? LogicalKeySet.fromSet(RawKeyboard.instance.keysPressed);
-    Intent matchedIntent = _shortcuts[keySet];
-    if (matchedIntent == null) {
-      // If there's not a more specific match, We also look for any keys that
-      // have synonyms in the map.  This is for things like left and right shift
-      // keys mapping to just the "shift" pseudo-key.
-      final Set<LogicalKeyboardKey> pseudoKeys = <LogicalKeyboardKey>{};
-      for (LogicalKeyboardKey setKey in keySet.keys) {
-        final Set<LogicalKeyboardKey> synonyms = setKey.synonyms;
-        if (synonyms.isNotEmpty) {
-          // There currently aren't any synonyms that match more than one key.
-          pseudoKeys.add(synonyms.first);
-        } else {
-          pseudoKeys.add(setKey);
+    assert(
+      RawKeyboard.instance.keysPressed.isNotEmpty,
+      'Received a key down event when no keys are in keysPressed. '
+      "This state can occur if the key event being sent doesn't properly "
+      'set its modifier flags. This was the event: $event and its data: '
+      '${event.data}',
+    );
+    final Intent? matchedIntent = _find(event, RawKeyboard.instance);
+    if (matchedIntent != null) {
+      final BuildContext? primaryContext = primaryFocus?.context;
+      if (primaryContext != null) {
+        final Action<Intent>? action = Actions.maybeFind<Intent>(
+          primaryContext,
+          intent: matchedIntent,
+        );
+        if (action != null && action.isEnabled(matchedIntent)) {
+          Actions.of(primaryContext).invokeAction(action, matchedIntent, primaryContext);
+          return action.consumesKey(matchedIntent)
+              ? KeyEventResult.handled
+              : KeyEventResult.skipRemainingHandlers;
         }
       }
-      matchedIntent = _shortcuts[LogicalKeySet.fromSet(pseudoKeys)];
     }
-    if (matchedIntent != null) {
-      final BuildContext primaryContext = WidgetsBinding.instance.focusManager.primaryFocus?.context;
-      if (primaryContext == null) {
-        return false;
-      }
-      return Actions.invoke(primaryContext, matchedIntent, nullOk: true);
-    }
-    return false;
+    return modal ? KeyEventResult.skipRemainingHandlers : KeyEventResult.ignored;
   }
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<Map<LogicalKeySet, Intent>>('shortcuts', _shortcuts));
+    properties.add(DiagnosticsProperty<Map<ShortcutActivator, Intent>>('shortcuts', _shortcuts));
     properties.add(FlagProperty('modal', value: modal, ifTrue: 'modal', defaultValue: false));
   }
 }
 
-/// A widget that establishes an [ShortcutManager] to be used by its descendants
+/// A widget to that creates key bindings to specific actions for its
+/// descendants.
+///
+/// This widget establishes a [ShortcutManager] to be used by its descendants
 /// when invoking an [Action] via a keyboard key combination that maps to an
 /// [Intent].
 ///
+/// {@tool dartpad --template=stateful_widget_scaffold_center}
+///
+/// Here, we will use the [Shortcuts] and [Actions] widgets to add and subtract
+/// from a counter. When the child widget has keyboard focus, and a user presses
+/// the keys that have been defined in [Shortcuts], the action that is bound
+/// to the appropriate [Intent] for the key is invoked.
+///
+/// It also shows the use of a [CallbackAction] to avoid creating a new [Action]
+/// subclass.
+///
+/// ```dart imports
+/// import 'package:flutter/services.dart';
+/// ```
+///
+/// ```dart preamble
+/// class IncrementIntent extends Intent {
+///   const IncrementIntent();
+/// }
+///
+/// class DecrementIntent extends Intent {
+///   const DecrementIntent();
+/// }
+/// ```
+///
+/// ```dart
+/// int count = 0;
+///
+/// @override
+/// Widget build(BuildContext context) {
+///   return Shortcuts(
+///     shortcuts: <ShortcutActivator, Intent>{
+///       LogicalKeySet(LogicalKeyboardKey.arrowUp): const IncrementIntent(),
+///       LogicalKeySet(LogicalKeyboardKey.arrowDown): const DecrementIntent(),
+///     },
+///     child: Actions(
+///       actions: <Type, Action<Intent>>{
+///         IncrementIntent: CallbackAction<IncrementIntent>(
+///           onInvoke: (IncrementIntent intent) => setState(() {
+///             count = count + 1;
+///           }),
+///         ),
+///         DecrementIntent: CallbackAction<DecrementIntent>(
+///           onInvoke: (DecrementIntent intent) => setState(() {
+///             count = count - 1;
+///           }),
+///         ),
+///       },
+///       child: Focus(
+///         autofocus: true,
+///         child: Column(
+///           children: <Widget>[
+///             const Text('Add to the counter by pressing the up arrow key'),
+///             const Text(
+///                 'Subtract from the counter by pressing the down arrow key'),
+///             Text('count: $count'),
+///           ],
+///         ),
+///       ),
+///     ),
+///   );
+/// }
+/// ```
+/// {@end-tool}
+///
+/// {@tool dartpad --template=stateful_widget_scaffold_center}
+///
+/// This slightly more complicated, but more flexible, example creates a custom
+/// [Action] subclass to increment and decrement within a widget (a [Column])
+/// that has keyboard focus. When the user presses the up and down arrow keys,
+/// the counter will increment and decrement a data model using the custom
+/// actions.
+///
+/// One thing that this demonstrates is passing arguments to the [Intent] to be
+/// carried to the [Action]. This shows how actions can get data either from
+/// their own construction (like the `model` in this example), or from the
+/// intent passed to them when invoked (like the increment `amount` in this
+/// example).
+///
+/// ```dart imports
+/// import 'package:flutter/services.dart';
+/// ```
+///
+/// ```dart preamble
+/// class Model with ChangeNotifier {
+///   int count = 0;
+///   void incrementBy(int amount) {
+///     count += amount;
+///     notifyListeners();
+///   }
+///
+///   void decrementBy(int amount) {
+///     count -= amount;
+///     notifyListeners();
+///   }
+/// }
+///
+/// class IncrementIntent extends Intent {
+///   const IncrementIntent(this.amount);
+///
+///   final int amount;
+/// }
+///
+/// class DecrementIntent extends Intent {
+///   const DecrementIntent(this.amount);
+///
+///   final int amount;
+/// }
+///
+/// class IncrementAction extends Action<IncrementIntent> {
+///   IncrementAction(this.model);
+///
+///   final Model model;
+///
+///   @override
+///   void invoke(covariant IncrementIntent intent) {
+///     model.incrementBy(intent.amount);
+///   }
+/// }
+///
+/// class DecrementAction extends Action<DecrementIntent> {
+///   DecrementAction(this.model);
+///
+///   final Model model;
+///
+///   @override
+///   void invoke(covariant DecrementIntent intent) {
+///     model.decrementBy(intent.amount);
+///   }
+/// }
+/// ```
+///
+/// ```dart
+/// Model model = Model();
+///
+/// @override
+/// Widget build(BuildContext context) {
+///   return Shortcuts(
+///     shortcuts: <ShortcutActivator, Intent>{
+///       LogicalKeySet(LogicalKeyboardKey.arrowUp): const IncrementIntent(2),
+///       LogicalKeySet(LogicalKeyboardKey.arrowDown): const DecrementIntent(2),
+///     },
+///     child: Actions(
+///       actions: <Type, Action<Intent>>{
+///         IncrementIntent: IncrementAction(model),
+///         DecrementIntent: DecrementAction(model),
+///       },
+///       child: Focus(
+///         autofocus: true,
+///         child: Column(
+///           children: <Widget>[
+///             const Text('Add to the counter by pressing the up arrow key'),
+///             const Text(
+///                 'Subtract from the counter by pressing the down arrow key'),
+///             AnimatedBuilder(
+///               animation: model,
+///               builder: (BuildContext context, Widget? child) {
+///                 return Text('count: ${model.count}');
+///               },
+///             ),
+///           ],
+///         ),
+///       ),
+///     ),
+///   );
+/// }
+/// ```
+/// {@end-tool}
+///
 /// See also:
 ///
-///   * [Intent], a class for containing a description of a user
-///     action to be invoked.
-///   * [Action], a class for defining an invocation of a user action.
+///  * [Intent], a class for containing a description of a user action to be
+///    invoked.
+///  * [Action], a class for defining an invocation of a user action.
+///  * [CallbackAction], a class for creating an action from a callback.
 class Shortcuts extends StatefulWidget {
-  /// Creates a ActionManager object.
+  /// Creates a const [Shortcuts] widget.
   ///
-  /// The [child] argument must not be null.
+  /// The [child] and [shortcuts] arguments are required.
   const Shortcuts({
-    Key key,
+    Key? key,
     this.manager,
-    this.shortcuts,
-    this.child,
-  }) : super(key: key);
+    required this.shortcuts,
+    required this.child,
+    this.debugLabel,
+  }) : assert(shortcuts != null),
+       assert(child != null),
+       super(key: key);
 
   /// The [ShortcutManager] that will manage the mapping between key
   /// combinations and [Action]s.
@@ -253,43 +930,75 @@ class Shortcuts extends StatefulWidget {
   ///
   /// This manager will be given new [shortcuts] to manage whenever the
   /// [shortcuts] change materially.
-  final ShortcutManager manager;
+  final ShortcutManager? manager;
 
-  /// The map of shortcuts that the [manager] will be given to manage.
+  /// {@template flutter.widgets.shortcuts.shortcuts}
+  /// The map of shortcuts that the [ShortcutManager] will be given to manage.
   ///
   /// For performance reasons, it is recommended that a pre-built map is passed
   /// in here (e.g. a final variable from your widget class) instead of defining
   /// it inline in the build function.
-  final Map<LogicalKeySet, Intent> shortcuts;
+  /// {@endtemplate}
+  final Map<ShortcutActivator, Intent> shortcuts;
 
   /// The child widget for this [Shortcuts] widget.
   ///
-  /// {@macro flutter.widgets.child}
+  /// {@macro flutter.widgets.ProxyWidget.child}
   final Widget child;
 
-  /// Returns the [ActionDispatcher] that most tightly encloses the given
+  /// The debug label that is printed for this node when logged.
+  ///
+  /// If this label is set, then it will be displayed instead of the shortcut
+  /// map when logged.
+  ///
+  /// This allows simplifying the diagnostic output to avoid cluttering it
+  /// unnecessarily with large default shortcut maps.
+  final String? debugLabel;
+
+  /// Returns the [ShortcutManager] that most tightly encloses the given
   /// [BuildContext].
   ///
-  /// The [context] argument must not be null.
-  static ShortcutManager of(BuildContext context, {bool nullOk = false}) {
+  /// If no [Shortcuts] widget encloses the context given, will assert in debug
+  /// mode and throw an exception in release mode.
+  ///
+  /// See also:
+  ///
+  ///  * [maybeOf], which is similar to this function, but will return null if
+  ///    it doesn't find a [Shortcuts] ancestor.
+  static ShortcutManager of(BuildContext context) {
     assert(context != null);
-    final _ShortcutsMarker inherited = context.inheritFromWidgetOfExactType(_ShortcutsMarker);
+    final _ShortcutsMarker? inherited = context.dependOnInheritedWidgetOfExactType<_ShortcutsMarker>();
     assert(() {
-      if (nullOk) {
-        return true;
-      }
       if (inherited == null) {
-        throw FlutterError('Unable to find a $Shortcuts widget in the context.\n'
-            '$Shortcuts.of() was called with a context that does not contain a '
-            '$Shortcuts widget.\n'
-            'No $Shortcuts ancestor could be found starting from the context that was '
-            'passed to $Shortcuts.of().\n'
-            'The context used was:\n'
-            '  $context');
+        throw FlutterError(
+          'Unable to find a $Shortcuts widget in the context.\n'
+          '$Shortcuts.of() was called with a context that does not contain a '
+          '$Shortcuts widget.\n'
+          'No $Shortcuts ancestor could be found starting from the context that was '
+          'passed to $Shortcuts.of().\n'
+          'The context used was:\n'
+          '  $context',
+        );
       }
       return true;
     }());
-    return inherited?.notifier;
+    return inherited!.manager;
+  }
+
+  /// Returns the [ShortcutManager] that most tightly encloses the given
+  /// [BuildContext].
+  ///
+  /// If no [Shortcuts] widget encloses the context given, will return null.
+  ///
+  /// See also:
+  ///
+  ///  * [of], which is similar to this function, but returns a non-nullable
+  ///    result, and will throw an exception if it doesn't find a [Shortcuts]
+  ///    ancestor.
+  static ShortcutManager? maybeOf(BuildContext context) {
+    assert(context != null);
+    final _ShortcutsMarker? inherited = context.dependOnInheritedWidgetOfExactType<_ShortcutsMarker>();
+    return inherited?.manager;
   }
 
   @override
@@ -298,14 +1007,14 @@ class Shortcuts extends StatefulWidget {
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(DiagnosticsProperty<ShortcutManager>('manager', manager));
-    properties.add(DiagnosticsProperty<Map<LogicalKeySet, Intent>>('shortcuts', shortcuts));
+    properties.add(DiagnosticsProperty<ShortcutManager>('manager', manager, defaultValue: null));
+    properties.add(ShortcutMapProperty('shortcuts', shortcuts, description: debugLabel?.isNotEmpty ?? false ? debugLabel : null));
   }
 }
 
 class _ShortcutsState extends State<Shortcuts> {
-  ShortcutManager _internalManager;
-  ShortcutManager get manager => widget.manager ?? _internalManager;
+  ShortcutManager? _internalManager;
+  ShortcutManager get manager => widget.manager ?? _internalManager!;
 
   @override
   void dispose() {
@@ -336,11 +1045,11 @@ class _ShortcutsState extends State<Shortcuts> {
     manager.shortcuts = widget.shortcuts;
   }
 
-  bool _handleOnKey(FocusNode node, RawKeyEvent event) {
+  KeyEventResult _handleOnKey(FocusNode node, RawKeyEvent event) {
     if (node.context == null) {
-      return false;
+      return KeyEventResult.ignored;
     }
-    return manager.handleKeypress(node.context, event) || manager.modal;
+    return manager.handleKeypress(node.context!, event);
   }
 
   @override
@@ -359,9 +1068,11 @@ class _ShortcutsState extends State<Shortcuts> {
 
 class _ShortcutsMarker extends InheritedNotifier<ShortcutManager> {
   const _ShortcutsMarker({
-    @required ShortcutManager manager,
-    @required Widget child,
+    required ShortcutManager manager,
+    required Widget child,
   })  : assert(manager != null),
         assert(child != null),
         super(notifier: manager, child: child);
+
+  ShortcutManager get manager => super.notifier!;
 }

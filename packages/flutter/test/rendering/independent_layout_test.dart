@@ -1,10 +1,11 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:flutter/material.dart';
+import 'dart:ui' as ui show window;
+
 import 'package:flutter/rendering.dart';
-import '../flutter_test_alternative.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'rendering_tester.dart';
 
@@ -16,7 +17,7 @@ class TestLayout {
         additionalConstraints: const BoxConstraints.tightFor(width: 800.0),
         child: RenderCustomPaint(
           painter: TestCallbackPainter(
-            onPaint: () { painted = true; }
+            onPaint: () { painted = true; },
           ),
           child: child = RenderConstrainedBox(
             additionalConstraints: const BoxConstraints.tightFor(height: 10.0, width: 10.0),
@@ -25,8 +26,8 @@ class TestLayout {
       ),
     );
   }
-  RenderBox root;
-  RenderBox child;
+  late RenderBox root;
+  late RenderBox child;
   bool painted = false;
 }
 
@@ -44,7 +45,7 @@ void main() {
     expect(offscreen.child.hasSize, isFalse);
     expect(offscreen.painted, isFalse);
     // Attach the offscreen to a custom render view and owner
-    final RenderView renderView = RenderView(configuration: testConfiguration, window: null);
+    final RenderView renderView = RenderView(configuration: testConfiguration, window: ui.window);
     final PipelineOwner pipelineOwner = PipelineOwner();
     renderView.attach(pipelineOwner);
     renderView.child = offscreen.root;
@@ -74,7 +75,7 @@ void main() {
     expect(offscreen.child.hasSize, isFalse);
     expect(offscreen.painted, isFalse);
     // Attach the offscreen to a custom render view and owner
-    final RenderView renderView = RenderView(configuration: testConfiguration, window: null);
+    final RenderView renderView = RenderView(configuration: testConfiguration, window: ui.window);
     final PipelineOwner pipelineOwner = PipelineOwner();
     renderView.attach(pipelineOwner);
     renderView.child = offscreen.root;

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,20 +10,19 @@ import '../rendering/mock_canvas.dart';
 
 void main() {
   testWidgets('Activity indicator animate property works', (WidgetTester tester) async {
-
     await tester.pumpWidget(buildCupertinoActivityIndicator());
-    expect(SchedulerBinding.instance.transientCallbackCount, equals(1));
+    expect(SchedulerBinding.instance!.transientCallbackCount, equals(1));
 
     await tester.pumpWidget(buildCupertinoActivityIndicator(false));
-    expect(SchedulerBinding.instance.transientCallbackCount, equals(0));
+    expect(SchedulerBinding.instance!.transientCallbackCount, equals(0));
 
     await tester.pumpWidget(Container());
 
     await tester.pumpWidget(buildCupertinoActivityIndicator(false));
-    expect(SchedulerBinding.instance.transientCallbackCount, equals(0));
+    expect(SchedulerBinding.instance!.transientCallbackCount, equals(0));
 
     await tester.pumpWidget(buildCupertinoActivityIndicator());
-    expect(SchedulerBinding.instance.transientCallbackCount, equals(1));
+    expect(SchedulerBinding.instance!.transientCallbackCount, equals(1));
   });
 
   testWidgets('Activity indicator dark mode', (WidgetTester tester) async {
@@ -36,7 +35,10 @@ void main() {
             key: key,
             child: Container(
               color: CupertinoColors.white,
-              child: const CupertinoActivityIndicator(animating: false, radius: 35),
+              child: const CupertinoActivityIndicator(
+                animating: false,
+                radius: 35,
+              ),
             ),
           ),
         ),
@@ -45,7 +47,7 @@ void main() {
 
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile('activityIndicator.paused.light.png', version: 0),
+      matchesGoldenFile('activityIndicator.paused.light.png'),
     );
 
     await tester.pumpWidget(
@@ -56,7 +58,10 @@ void main() {
             key: key,
             child: Container(
               color: CupertinoColors.black,
-              child: const CupertinoActivityIndicator(animating: false, radius: 35),
+              child: const CupertinoActivityIndicator(
+                animating: false,
+                radius: 35,
+              ),
             ),
           ),
         ),
@@ -65,7 +70,71 @@ void main() {
 
     await expectLater(
       find.byKey(key),
-      matchesGoldenFile('activityIndicator.paused.dark.png', version: 0),
+      matchesGoldenFile('activityIndicator.paused.dark.png'),
+    );
+  });
+
+  testWidgets('Activity indicator 0% in progress', (WidgetTester tester) async {
+    final Key key = UniqueKey();
+    await tester.pumpWidget(
+      Center(
+        child: RepaintBoundary(
+          key: key,
+          child: Container(
+            color: CupertinoColors.white,
+            child:
+                const CupertinoActivityIndicator.partiallyRevealed(progress: 0),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      find.byKey(key),
+      matchesGoldenFile('activityIndicator.inprogress.0.0.png'),
+    );
+  });
+
+  testWidgets('Activity indicator 30% in progress', (WidgetTester tester) async {
+    final Key key = UniqueKey();
+    await tester.pumpWidget(
+      Center(
+        child: RepaintBoundary(
+          key: key,
+          child: Container(
+            color: CupertinoColors.white,
+            child: const CupertinoActivityIndicator.partiallyRevealed(
+              progress: 0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      find.byKey(key),
+      matchesGoldenFile('activityIndicator.inprogress.0.3.png'),
+    );
+  });
+
+  testWidgets('Activity indicator 100% in progress', (WidgetTester tester) async {
+    final Key key = UniqueKey();
+    await tester.pumpWidget(
+      Center(
+        child: RepaintBoundary(
+          key: key,
+          child: Container(
+            color: CupertinoColors.white,
+            child:
+                const CupertinoActivityIndicator.partiallyRevealed(progress: 1),
+          ),
+        ),
+      ),
+    );
+
+    await expectLater(
+      find.byKey(key),
+      matchesGoldenFile('activityIndicator.inprogress.1.0.png'),
     );
   });
 
@@ -75,14 +144,19 @@ void main() {
       const CupertinoActivityIndicator(animating: false, radius: 100),
     );
 
+    // An earlier implementation for the activity indicator started drawing
+    // the ticks at 9 o'clock, however, in order to support partially revealed
+    // indicator (https://github.com/flutter/flutter/issues/29159), the
+    // first tick was changed to be at 12 o'clock.
     expect(
       find.byType(CupertinoActivityIndicator),
-      paints..rrect(rrect: const RRect.fromLTRBXY(-100, 10, -50, -10, 10, 10)),
+      paints
+        ..rrect(rrect: const RRect.fromLTRBXY(-10, -100 / 3, 10, -100, 10, 10)),
     );
   });
 }
 
-Widget buildCupertinoActivityIndicator([ bool animating ]) {
+Widget buildCupertinoActivityIndicator([bool? animating]) {
   return MediaQuery(
     data: const MediaQueryData(platformBrightness: Brightness.light),
     child: CupertinoActivityIndicator(

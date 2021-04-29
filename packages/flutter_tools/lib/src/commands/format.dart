@@ -1,12 +1,12 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:async';
+// @dart = 2.8
 
+import '../artifacts.dart';
 import '../base/common.dart';
-import '../base/process.dart';
-import '../dart/sdk.dart';
+import '../globals.dart' as globals;
 import '../runner/flutter_command.dart';
 
 class FormatCommand extends FlutterCommand {
@@ -30,7 +30,8 @@ class FormatCommand extends FlutterCommand {
     );
     argParser.addOption('line-length',
       abbr: 'l',
-      help: 'Wrap lines longer than this length. Defaults to 80 characters.',
+      help: 'Wrap lines longer than this length.',
+      valueHelp: 'characters',
       defaultsTo: '80',
     );
   }
@@ -42,12 +43,7 @@ class FormatCommand extends FlutterCommand {
   List<String> get aliases => const <String>['dartfmt'];
 
   @override
-  final String description = 'Format one or more dart files.';
-
-  @override
-  Future<Set<DevelopmentArtifact>> get requiredArtifacts async => const <DevelopmentArtifact>{
-    DevelopmentArtifact.universal,
-  };
+  final String description = 'Format one or more Dart files.';
 
   @override
   String get invocation => '${runner.executableName} $name <one or more paths>';
@@ -65,22 +61,24 @@ class FormatCommand extends FlutterCommand {
       );
     }
 
-    final String dartfmt = sdkBinaryName('dartfmt');
+    final String dartSdk = globals.artifacts.getHostArtifact(HostArtifact.engineDartSdkPath).path;
+    final String dartBinary = globals.artifacts.getHostArtifact(HostArtifact.engineDartBinary).path;
     final List<String> command = <String>[
-      dartfmt,
-      if (argResults['dry-run']) '-n',
-      if (argResults['machine']) '-m',
+      dartBinary,
+      globals.fs.path.join(dartSdk, 'bin', 'snapshots', 'dartfmt.dart.snapshot'),
+      if (boolArg('dry-run')) '-n',
+      if (boolArg('machine')) '-m',
       if (argResults['line-length'] != null) '-l ${argResults['line-length']}',
-      if (!argResults['dry-run'] && !argResults['machine']) '-w',
-      if (argResults['set-exit-if-changed']) '--set-exit-if-changed',
+      if (!boolArg('dry-run') && !boolArg('machine')) '-w',
+      if (boolArg('set-exit-if-changed')) '--set-exit-if-changed',
       ...argResults.rest,
     ];
 
-    final int result = await processUtils.stream(command);
+    final int result = await globals.processUtils.stream(command);
     if (result != 0) {
       throwToolExit('Formatting failed: $result', exitCode: result);
     }
 
-    return null;
+    return FlutterCommandResult.success();
   }
 }

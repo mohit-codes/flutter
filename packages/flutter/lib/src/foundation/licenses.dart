@@ -1,8 +1,6 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import 'dart:async';
 
 import 'package:meta/meta.dart' show visibleForTesting;
 
@@ -66,14 +64,14 @@ enum _LicenseEntryWithLineBreaksParserState {
 /// unless they start with the same number of spaces as the previous line, in
 /// which case it's assumed they are a continuation of an indented paragraph.
 ///
-/// {@tool sample}
+/// {@tool snippet}
 ///
 /// For example, the BSD license in this format could be encoded as follows:
 ///
 /// ```dart
 /// void initMyLibrary() {
 ///   LicenseRegistry.addLicense(() async* {
-///     yield LicenseEntryWithLineBreaks(<String>['my_library'], '''
+///     yield const LicenseEntryWithLineBreaks(<String>['my_library'], '''
 /// Copyright 2016 The Sample Authors. All rights reserved.
 ///
 /// Redistribution and use in source and binary forms, with or without
@@ -115,7 +113,7 @@ enum _LicenseEntryWithLineBreaksParserState {
 /// license per frame is reasonable; doing more at the same time is ill-advised.
 /// Consider doing all the work at once using [compute] to move the work to
 /// another thread, or spreading the work across multiple frames using
-/// [scheduleTask].
+/// [SchedulerBinding.scheduleTask].
 class LicenseEntryWithLineBreaks extends LicenseEntry {
   /// Create a license entry for a license whose text is hard-wrapped within
   /// paragraphs and has paragraph breaks denoted by blank lines or with
@@ -146,7 +144,7 @@ class LicenseEntryWithLineBreaks extends LicenseEntry {
     int currentPosition = 0;
     int lastLineIndent = 0;
     int currentLineIndent = 0;
-    int currentParagraphIndentation;
+    int? currentParagraphIndentation;
     _LicenseEntryWithLineBreaksParserState state = _LicenseEntryWithLineBreaksParserState.beforeParagraph;
     final List<String> lines = <String>[];
 
@@ -158,7 +156,7 @@ class LicenseEntryWithLineBreaks extends LicenseEntry {
     LicenseParagraph getParagraph() {
       assert(lines.isNotEmpty);
       assert(currentParagraphIndentation != null);
-      final LicenseParagraph result = LicenseParagraph(lines.join(' '), currentParagraphIndentation);
+      final LicenseParagraph result = LicenseParagraph(lines.join(' '), currentParagraphIndentation!);
       assert(result.text.trimLeft() == result.text);
       assert(result.text.isNotEmpty);
       lines.clear();
@@ -288,9 +286,11 @@ class LicenseEntryWithLineBreaks extends LicenseEntry {
 ///  * [AboutListTile], which is a widget that can be added to a [Drawer]. When
 ///    tapped it calls [showAboutDialog].
 class LicenseRegistry {
+  // This class is not meant to be instantiated or extended; this constructor
+  // prevents instantiation and extension.
   LicenseRegistry._();
 
-  static List<LicenseEntryCollector> _collectors;
+  static List<LicenseEntryCollector>? _collectors;
 
   /// Adds licenses to the registry.
   ///
@@ -301,7 +301,7 @@ class LicenseRegistry {
   /// licenses, the closure will not be called.
   static void addLicense(LicenseEntryCollector collector) {
     _collectors ??= <LicenseEntryCollector>[];
-    _collectors.add(collector);
+    _collectors!.add(collector);
   }
 
   /// Returns the licenses that have been registered.
@@ -310,7 +310,7 @@ class LicenseRegistry {
   static Stream<LicenseEntry> get licenses async* {
     if (_collectors == null)
       return;
-    for (LicenseEntryCollector collector in _collectors)
+    for (final LicenseEntryCollector collector in _collectors!)
       yield* collector();
   }
 

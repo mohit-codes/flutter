@@ -1,10 +1,9 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 
 import 'colors.dart';
 import 'theme.dart';
@@ -13,9 +12,9 @@ import 'theme.dart';
 // below the top.
 class _FadeUpwardsPageTransition extends StatelessWidget {
   _FadeUpwardsPageTransition({
-    Key key,
-    @required Animation<double> routeAnimation, // The route's linear 0.0 - 1.0 animation.
-    @required this.child,
+    Key? key,
+    required Animation<double> routeAnimation, // The route's linear 0.0 - 1.0 animation.
+    required this.child,
   }) : _positionAnimation = routeAnimation.drive(_bottomUpTween.chain(_fastOutSlowInTween)),
        _opacityAnimation = routeAnimation.drive(_easeInTween),
        super(key: key);
@@ -48,10 +47,10 @@ class _FadeUpwardsPageTransition extends StatelessWidget {
 // This transition is intended to match the default for Android P.
 class _OpenUpwardsPageTransition extends StatelessWidget {
   const _OpenUpwardsPageTransition({
-    Key key,
-    this.animation,
-    this.secondaryAnimation,
-    this.child,
+    Key? key,
+    required this.animation,
+    required this.secondaryAnimation,
+    required this.child,
   }) : super(key: key);
 
   // The new page slides upwards just a little as its clip
@@ -111,7 +110,7 @@ class _OpenUpwardsPageTransition extends StatelessWidget {
 
         return AnimatedBuilder(
           animation: animation,
-          builder: (BuildContext context, Widget child) {
+          builder: (BuildContext context, Widget? child) {
             return Container(
               color: Colors.black.withOpacity(opacityAnimation.value),
               alignment: Alignment.bottomLeft,
@@ -133,7 +132,7 @@ class _OpenUpwardsPageTransition extends StatelessWidget {
               translation: primaryTranslationAnimation.value,
               child: child,
             ),
-            builder: (BuildContext context, Widget child) {
+            builder: (BuildContext context, Widget? child) {
               return FractionalTranslation(
                 translation: secondaryTranslationAnimation.value,
                 child: child,
@@ -148,19 +147,19 @@ class _OpenUpwardsPageTransition extends StatelessWidget {
 
 // Zooms and fades a new page in, zooming out the previous page. This transition
 // is designed to match the Android 10 activity transition.
-class _ZoomPageTransition extends StatefulWidget {
+class _ZoomPageTransition extends StatelessWidget {
+  /// Creates a [_ZoomPageTransition].
+  ///
+  /// The [animation] and [secondaryAnimation] argument are required and must
+  /// not be null.
   const _ZoomPageTransition({
-    Key key,
-    this.animation,
-    this.secondaryAnimation,
+    Key? key,
+    required this.animation,
+    required this.secondaryAnimation,
     this.child,
-  }) : super(key: key);
-
-  // The scrim obscures the old page by becoming increasingly opaque.
-  static final Tween<double> _scrimOpacityTween = Tween<double>(
-    begin: 0.0,
-    end: 0.60,
-  );
+  }) : assert(animation != null),
+       assert(secondaryAnimation != null),
+       super(key: key);
 
   // A curve sequence that is similar to the 'fastOutExtraSlowIn' curve used in
   // the native transition.
@@ -177,132 +176,207 @@ class _ZoomPageTransition extends StatefulWidget {
     ),
   ];
   static final TweenSequence<double> _scaleCurveSequence = TweenSequence<double>(fastOutExtraSlowInTweenSequenceItems);
-  static final FlippedTweenSequence _flippedScaleCurveSequence = FlippedTweenSequence(fastOutExtraSlowInTweenSequenceItems);
 
+  /// The animation that drives the [child]'s entrance and exit.
+  ///
+  /// See also:
+  ///
+  ///  * [TransitionRoute.animation], which is the value given to this property
+  ///    when the [_ZoomPageTransition] is used as a page transition.
   final Animation<double> animation;
+
+  /// The animation that transitions [child] when new content is pushed on top
+  /// of it.
+  ///
+  /// See also:
+  ///
+  ///  * [TransitionRoute.secondaryAnimation], which is the value given to this
+  ///    property when the [_ZoomPageTransition] is used as a page transition.
   final Animation<double> secondaryAnimation;
-  final Widget child;
 
-  @override
-  __ZoomPageTransitionState createState() => __ZoomPageTransitionState();
-}
-
-class __ZoomPageTransitionState extends State<_ZoomPageTransition> {
-  AnimationStatus _currentAnimationStatus;
-  AnimationStatus _lastAnimationStatus;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.animation.addStatusListener((AnimationStatus animationStatus) {
-      _lastAnimationStatus = _currentAnimationStatus;
-      _currentAnimationStatus = animationStatus;
-    });
-  }
-
-  // This check ensures that the animation reverses the original animation if
-  // the transition were interruped midway. This prevents a disjointed
-  // experience since the reverse animation uses different fade and scaling
-  // curves.
-  bool get _transitionWasInterrupted {
-    bool wasInProgress = false;
-    bool isInProgress = false;
-
-    switch (_currentAnimationStatus) {
-      case AnimationStatus.completed:
-      case AnimationStatus.dismissed:
-        isInProgress = false;
-        break;
-      case AnimationStatus.forward:
-      case AnimationStatus.reverse:
-        isInProgress = true;
-        break;
-    }
-    switch (_lastAnimationStatus) {
-      case AnimationStatus.completed:
-      case AnimationStatus.dismissed:
-        wasInProgress = false;
-        break;
-      case AnimationStatus.forward:
-      case AnimationStatus.reverse:
-        wasInProgress = true;
-        break;
-    }
-    return wasInProgress && isInProgress;
-  }
+  /// The widget below this widget in the tree.
+  ///
+  /// This widget will transition in and out as driven by [animation] and
+  /// [secondaryAnimation].
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
-    final Animation<double> _forwardScrimOpacityAnimation = widget.animation.drive(
-      _ZoomPageTransition._scrimOpacityTween
-        .chain(CurveTween(curve: const Interval(0.2075, 0.4175))));
+    return DualTransitionBuilder(
+      animation: animation,
+      forwardBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Widget? child,
+      ) {
+        return _ZoomEnterTransition(
+          animation: animation,
+          child: child,
+        );
+      },
+      reverseBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Widget? child,
+      ) {
+        return _ZoomExitTransition(
+          animation: animation,
+          reverse: true,
+          child: child,
+        );
+      },
+      child: DualTransitionBuilder(
+        animation: ReverseAnimation(secondaryAnimation),
+        forwardBuilder: (
+          BuildContext context,
+          Animation<double> animation,
+          Widget? child,
+        ) {
+          return _ZoomEnterTransition(
+            animation: animation,
+            reverse: true,
+            child: child,
+          );
+        },
+        reverseBuilder: (
+          BuildContext context,
+          Animation<double> animation,
+          Widget? child,
+        ) {
+          return _ZoomExitTransition(
+            animation: animation,
+            child: child,
+          );
+        },
+        child: child,
+      ),
+    );
+  }
+}
 
-    final Animation<double> _forwardEndScreenScaleTransition = widget.animation.drive(
-      Tween<double>(begin: 0.85, end: 1.00)
-        .chain(_ZoomPageTransition._scaleCurveSequence));
+class _ZoomEnterTransition extends StatelessWidget {
+  const _ZoomEnterTransition({
+    Key? key,
+    required this.animation,
+    this.reverse = false,
+    this.child,
+  }) : assert(animation != null),
+       assert(reverse != null),
+       super(key: key);
 
-    final Animation<double> _forwardStartScreenScaleTransition = widget.secondaryAnimation.drive(
-      Tween<double>(begin: 1.00, end: 1.05)
-        .chain(_ZoomPageTransition._scaleCurveSequence));
+  final Animation<double> animation;
+  final Widget? child;
+  final bool reverse;
 
-    final Animation<double> _forwardEndScreenFadeTransition = widget.animation.drive(
-      Tween<double>(begin: 0.0, end: 1.00)
-        .chain(CurveTween(curve: const Interval(0.125, 0.250))));
+  static final Animatable<double> _fadeInTransition = Tween<double>(
+    begin: 0.0,
+    end: 1.00,
+  ).chain(CurveTween(curve: const Interval(0.125, 0.250)));
 
-    final Animation<double> _reverseEndScreenScaleTransition = widget.secondaryAnimation.drive(
-      Tween<double>(begin: 1.00, end: 1.10)
-        .chain(_ZoomPageTransition._flippedScaleCurveSequence));
+  static final Animatable<double> _scaleDownTransition = Tween<double>(
+    begin: 1.10,
+    end: 1.00,
+  ).chain(_ZoomPageTransition._scaleCurveSequence);
 
-    final Animation<double> _reverseStartScreenScaleTransition = widget.animation.drive(
-      Tween<double>(begin: 0.9, end: 1.0)
-        .chain(_ZoomPageTransition._flippedScaleCurveSequence));
+  static final Animatable<double> _scaleUpTransition = Tween<double>(
+    begin: 0.85,
+    end: 1.00,
+  ).chain(_ZoomPageTransition._scaleCurveSequence);
 
-    final Animation<double> _reverseStartScreenFadeTransition = widget.animation.drive(
-      Tween<double>(begin: 0.0, end: 1.00)
-        .chain(CurveTween(curve: const Interval(1 - 0.2075, 1 - 0.0825))));
+  static final Animatable<double?> _scrimOpacityTween = Tween<double?>(
+    begin: 0.0,
+    end: 0.60,
+  ).chain(CurveTween(curve: const Interval(0.2075, 0.4175)));
+
+  @override
+  Widget build(BuildContext context) {
+    double opacity = 0;
+    // The transition's scrim opacity only increases on the forward transition. In the reverse
+    // transition, the opacity should always be 0.0.
+    //
+    // Therefore, we need to only apply the scrim opacity animation when the transition
+    // is running forwards.
+    //
+    // The reason that we check that the animation's status is not `completed` instead
+    // of checking that it is `forward` is that this allows the interrupted reversal of the
+    // forward transition to smoothly fade the scrim away. This prevents a disjointed
+    // removal of the scrim.
+    if (!reverse && animation.status != AnimationStatus.completed) {
+      opacity = _scrimOpacityTween.evaluate(animation)!;
+    }
+
+    final Animation<double> fadeTransition = reverse
+      ? kAlwaysCompleteAnimation
+      : _fadeInTransition.animate(animation);
+
+    final Animation<double> scaleTransition = (reverse
+      ? _scaleDownTransition
+      : _scaleUpTransition
+    ).animate(animation);
 
     return AnimatedBuilder(
-      animation: widget.animation,
-      builder: (BuildContext context, Widget child) {
-        if (widget.animation.status == AnimationStatus.forward || _transitionWasInterrupted) {
-          return Container(
-            color: Colors.black.withOpacity(_forwardScrimOpacityAnimation.value),
-            child: FadeTransition(
-              opacity: _forwardEndScreenFadeTransition,
-              child: ScaleTransition(
-                scale: _forwardEndScreenScaleTransition,
-                child: child,
-              ),
-            ),
-          );
-        } else if (widget.animation.status == AnimationStatus.reverse) {
-          return ScaleTransition(
-            scale: _reverseStartScreenScaleTransition,
-            child: FadeTransition(
-              opacity: _reverseStartScreenFadeTransition,
-              child: child,
-            ),
-          );
-        }
-        return child;
+      animation: animation,
+      builder: (BuildContext context, Widget? child) {
+        return Container(
+          color: Colors.black.withOpacity(opacity),
+          child: child,
+        );
       },
-      child: AnimatedBuilder(
-        animation: widget.secondaryAnimation,
-        builder: (BuildContext context, Widget child) {
-          if (widget.secondaryAnimation.status == AnimationStatus.forward || _transitionWasInterrupted) {
-            return ScaleTransition(
-              scale: _forwardStartScreenScaleTransition,
-              child: child,
-            );
-          } else if (widget.secondaryAnimation.status == AnimationStatus.reverse) {
-            return ScaleTransition(
-              scale: _reverseEndScreenScaleTransition,
-              child: child,
-            );
-          }
-          return child;
-        },
-        child: widget.child,
+      child: FadeTransition(
+        opacity: fadeTransition,
+        child: ScaleTransition(
+          scale: scaleTransition,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _ZoomExitTransition extends StatelessWidget {
+  const _ZoomExitTransition({
+    Key? key,
+    required this.animation,
+    this.reverse = false,
+    this.child,
+  }) : assert(animation != null),
+       assert(reverse != null),
+       super(key: key);
+
+  final Animation<double> animation;
+  final bool reverse;
+  final Widget? child;
+
+  static final Animatable<double> _fadeOutTransition = Tween<double>(
+    begin: 1.0,
+    end: 0.0,
+  ).chain(CurveTween(curve: const Interval(0.0825, 0.2075)));
+
+  static final Animatable<double> _scaleUpTransition = Tween<double>(
+    begin: 1.00,
+    end: 1.05,
+  ).chain(_ZoomPageTransition._scaleCurveSequence);
+
+  static final Animatable<double> _scaleDownTransition = Tween<double>(
+    begin: 1.00,
+    end: 0.90,
+  ).chain(_ZoomPageTransition._scaleCurveSequence);
+
+  @override
+  Widget build(BuildContext context) {
+    final Animation<double> fadeTransition = reverse
+      ? _fadeOutTransition.animate(animation)
+      : kAlwaysCompleteAnimation;
+    final Animation<double> scaleTransition = (reverse
+      ? _scaleDownTransition
+      : _scaleUpTransition
+    ).animate(animation);
+
+    return FadeTransition(
+      opacity: fadeTransition,
+      child: ScaleTransition(
+        scale: scaleTransition,
+        child: child,
       ),
     );
   }
@@ -311,7 +385,7 @@ class __ZoomPageTransitionState extends State<_ZoomPageTransition> {
 /// Used by [PageTransitionsTheme] to define a [MaterialPageRoute] page
 /// transition animation.
 ///
-/// Apps can configure the map of builders for [ThemeData.platformTheme]
+/// Apps can configure the map of builders for [ThemeData.pageTransitionsTheme]
 /// to customize the default [MaterialPageRoute] page transition animation
 /// for different platforms.
 ///
@@ -360,15 +434,15 @@ abstract class PageTransitionsBuilder {
 ///  * [CupertinoPageTransitionsBuilder], which defines a horizontal page
 ///    transition that matches native iOS page transitions.
 class FadeUpwardsPageTransitionsBuilder extends PageTransitionsBuilder {
-  /// Construct a [FadeUpwardsPageTransitionsBuilder].
+  /// Constructs a page transition animation that slides the page up.
   const FadeUpwardsPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
+    PageRoute<T>? route,
+    BuildContext? context,
     Animation<double> animation,
-    Animation<double> secondaryAnimation,
+    Animation<double>? secondaryAnimation,
     Widget child,
   ) {
     return _FadeUpwardsPageTransition(routeAnimation: animation, child: child);
@@ -387,13 +461,14 @@ class FadeUpwardsPageTransitionsBuilder extends PageTransitionsBuilder {
 ///  * [CupertinoPageTransitionsBuilder], which defines a horizontal page
 ///    transition that matches native iOS page transitions.
 class OpenUpwardsPageTransitionsBuilder extends PageTransitionsBuilder {
-  /// Construct a [OpenUpwardsPageTransitionsBuilder].
+  /// Constructs a page transition animation that matches the transition used on
+  /// Android P.
   const OpenUpwardsPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
+    PageRoute<T>? route,
+    BuildContext? context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
@@ -418,16 +493,17 @@ class OpenUpwardsPageTransitionsBuilder extends PageTransitionsBuilder {
 ///  * [CupertinoPageTransitionsBuilder], which defines a horizontal page
 ///    transition that matches native iOS page transitions.
 class ZoomPageTransitionsBuilder extends PageTransitionsBuilder {
-  /// Construct a [ZoomPageTransitionsBuilder].
+  /// Constructs a page transition animation that matches the transition used on
+  /// Android 10.
   const ZoomPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
+    PageRoute<T>? route,
+    BuildContext? context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-    Widget child,
+    Widget? child,
   ) {
     return _ZoomPageTransition(
       animation: animation,
@@ -448,7 +524,7 @@ class ZoomPageTransitionsBuilder extends PageTransitionsBuilder {
 ///  * [ZoomPageTransitionsBuilder], which defines a page transition similar
 ///    to the one provided in Android 10.
 class CupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
-  /// Construct a [CupertinoPageTransitionsBuilder].
+  /// Constructs a page transition animation that matches the iOS transition.
   const CupertinoPageTransitionsBuilder();
 
   @override
@@ -459,7 +535,7 @@ class CupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    return CupertinoPageRoute.buildPageTransitions<T>(route, context, animation, secondaryAnimation, child);
+    return CupertinoRouteTransitionMixin.buildPageTransitions<T>(route, context, animation, secondaryAnimation, child);
   }
 }
 
@@ -483,21 +559,24 @@ class CupertinoPageTransitionsBuilder extends PageTransitionsBuilder {
 ///  * [CupertinoPageTransitionsBuilder], which defines a horizontal page
 ///    transition that matches native iOS page transitions.
 @immutable
-class PageTransitionsTheme extends Diagnosticable {
-  /// Construct a PageTransitionsTheme.
+class PageTransitionsTheme with Diagnosticable {
+  /// Constructs an object that selects a transition based on the platform.
   ///
-  /// By default the list of builders is: [FadeUpwardsPageTransitionsBuilder],
-  /// [CupertinoPageTransitionsBuilder] for [TargetPlatform.android]
-  /// and [TargetPlatform.iOS] respectively.
-  const PageTransitionsTheme({ Map<TargetPlatform, PageTransitionsBuilder> builders }) : _builders = builders;
+  /// By default the list of builders is: [FadeUpwardsPageTransitionsBuilder]
+  /// for [TargetPlatform.android], and [CupertinoPageTransitionsBuilder] for
+  /// [TargetPlatform.iOS] and [TargetPlatform.macOS].
+  const PageTransitionsTheme({ Map<TargetPlatform, PageTransitionsBuilder> builders = _defaultBuilders }) : _builders = builders;
 
   static const Map<TargetPlatform, PageTransitionsBuilder> _defaultBuilders = <TargetPlatform, PageTransitionsBuilder>{
     TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
     TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+    TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+    TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
   };
 
   /// The [PageTransitionsBuilder]s supported by this theme.
-  Map<TargetPlatform, PageTransitionsBuilder> get builders => _builders ?? _defaultBuilders;
+  Map<TargetPlatform, PageTransitionsBuilder> get builders => _builders;
   final Map<TargetPlatform, PageTransitionsBuilder> _builders;
 
   /// Delegates to the builder for the current [ThemeData.platform]
@@ -513,7 +592,7 @@ class PageTransitionsTheme extends Diagnosticable {
   ) {
     TargetPlatform platform = Theme.of(context).platform;
 
-    if (CupertinoPageRoute.isPopGestureInProgress(route))
+    if (CupertinoRouteTransitionMixin.isPopGestureInProgress(route))
       platform = TargetPlatform.iOS;
 
     final PageTransitionsBuilder matchingBuilder =
@@ -523,20 +602,20 @@ class PageTransitionsTheme extends Diagnosticable {
 
   // Just used to the builders Map to a list with one PageTransitionsBuilder per platform
   // for the operator == overload.
-  List<PageTransitionsBuilder> _all(Map<TargetPlatform, PageTransitionsBuilder> builders) {
+  List<PageTransitionsBuilder?> _all(Map<TargetPlatform, PageTransitionsBuilder> builders) {
     return TargetPlatform.values.map((TargetPlatform platform) => builders[platform]).toList();
   }
 
   @override
-  bool operator ==(dynamic other) {
+  bool operator ==(Object other) {
     if (identical(this, other))
       return true;
     if (other.runtimeType != runtimeType)
       return false;
-    final PageTransitionsTheme typedOther = other;
-    if (identical(builders, other.builders))
+    if (other is PageTransitionsTheme && identical(builders, other.builders))
       return true;
-    return listEquals<PageTransitionsBuilder>(_all(builders), _all(typedOther.builders));
+    return other is PageTransitionsTheme
+        && listEquals<PageTransitionsBuilder?>(_all(other.builders), _all(builders));
   }
 
   @override

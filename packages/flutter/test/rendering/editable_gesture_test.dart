@@ -1,13 +1,11 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
 
 void main() {
   setUp(() => _GestureBindingSpy());
@@ -36,11 +34,14 @@ void main() {
       ),
       onSelectionChanged: (_, __, ___) { },
     );
+    editable.layout(BoxConstraints.loose(const Size(1000.0, 1000.0)));
+
     final PipelineOwner owner = PipelineOwner(onNeedVisualUpdate: () { });
-    final _PointerRouterSpy spy = GestureBinding.instance.pointerRouter;
+    final _PointerRouterSpy spy = GestureBinding.instance!.pointerRouter as _PointerRouterSpy;
     editable.attach(owner);
     // This should register pointer into GestureBinding.instance.pointerRouter.
     editable.handleEvent(const PointerDownEvent(), BoxHitTestEntry(editable, const Offset(10,10)));
+    GestureBinding.instance!.pointerRouter.route(const PointerDownEvent());
     expect(spy.routeCount, greaterThan(0));
     editable.detach();
     expect(spy.routeCount, 0);
@@ -54,12 +55,12 @@ class _GestureBindingSpy extends AutomatedTestWidgetsFlutterBinding {
   PointerRouter get pointerRouter => _testPointerRouter;
 }
 
-class FakeEditableTextState extends TextSelectionDelegate with Mock { }
+class FakeEditableTextState extends Fake implements TextSelectionDelegate  { }
 
 class _PointerRouterSpy extends PointerRouter {
   int routeCount = 0;
   @override
-  void addRoute(int pointer, PointerRoute route, [Matrix4 transform]) {
+  void addRoute(int pointer, PointerRoute route, [Matrix4? transform]) {
     super.addRoute(pointer, route, transform);
     routeCount++;
   }

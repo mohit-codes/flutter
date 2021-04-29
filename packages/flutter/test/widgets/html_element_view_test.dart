@@ -1,8 +1,8 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-@TestOn('chrome')
 
+@TestOn('chrome')
 import 'dart:async';
 
 import 'package:flutter/rendering.dart';
@@ -152,12 +152,10 @@ void main() {
 
       await tester.pumpWidget(
         Center(
-          child: Container(
-            child: SizedBox(
-              width: 200.0,
-              height: 100.0,
-              child: HtmlElementView(viewType: 'webview', key: key),
-            ),
+          child: SizedBox(
+            width: 200.0,
+            height: 100.0,
+            child: HtmlElementView(viewType: 'webview', key: key),
           ),
         ),
       );

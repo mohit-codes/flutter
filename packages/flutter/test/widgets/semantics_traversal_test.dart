@@ -1,14 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Flutter Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import 'dart:collection';
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -37,7 +35,7 @@ void main() {
     await tester.test(
       textDirection: TextDirection.ltr,
       children: <String, Rect>{
-        'A': const Offset(0.0, 0.0) & tenByTen,
+        'A': Offset.zero & tenByTen,
         'B': const Offset(20.0, 0.0) & tenByTen,
       },
       expectedTraversal: 'A B',
@@ -51,7 +49,7 @@ void main() {
     await tester.test(
       textDirection: TextDirection.rtl,
       children: <String, Rect>{
-        'A': const Offset(0.0, 0.0) & tenByTen,
+        'A': Offset.zero & tenByTen,
         'B': const Offset(20.0, 0.0) & tenByTen,
       },
       expectedTraversal: 'B A',
@@ -66,11 +64,11 @@ void main() {
   // │ B │
   // └───┘
   testTraversal('Semantics traverses vertically top-to-bottom', (TraversalTester tester) async {
-    for (TextDirection textDirection in TextDirection.values) {
+    for (final TextDirection textDirection in TextDirection.values) {
       await tester.test(
         textDirection: textDirection,
         children: <String, Rect>{
-          'A': const Offset(0.0, 0.0) & tenByTen,
+          'A': Offset.zero & tenByTen,
           'B': const Offset(0.0, 20.0) & tenByTen,
         },
         expectedTraversal: 'A B',
@@ -90,7 +88,7 @@ void main() {
     await tester.test(
       textDirection: TextDirection.ltr,
       children: <String, Rect>{
-        'A': const Offset(0.0, 0.0) & tenByTen,
+        'A': Offset.zero & tenByTen,
         'B': const Offset(20.0, 0.0) & tenByTen,
         'C': const Offset(0.0, 20.0) & tenByTen,
         'D': const Offset(20.0, 20.0) & tenByTen,
@@ -111,7 +109,7 @@ void main() {
     await tester.test(
       textDirection: TextDirection.rtl,
       children: <String, Rect>{
-        'A': const Offset(0.0, 0.0) & tenByTen,
+        'A': Offset.zero & tenByTen,
         'B': const Offset(20.0, 0.0) & tenByTen,
         'C': const Offset(0.0, 20.0) & tenByTen,
         'D': const Offset(20.0, 20.0) & tenByTen,
@@ -127,7 +125,7 @@ void main() {
   //         └───┘
   testTraversal('Semantics traverses vertically overlapping nodes horizontally', (TraversalTester tester) async {
     final Map<String, Rect> children = <String, Rect>{
-      'A': const Offset(0.0, 0.0) & tenByTen,
+      'A': Offset.zero & tenByTen,
       'B': const Offset(20.0, 5.0) & tenByTen,
       'C': const Offset(40.0, 0.0) & tenByTen,
     };
@@ -184,7 +182,7 @@ void main() {
   // └───┘ └───┘ └───┘ └───┘
   testTraversal('Semantics traverses vertical groups, then horizontal groups, then knots', (TraversalTester tester) async {
     final Map<String, Rect> children = <String, Rect>{
-      'A': const Offset(0.0, 0.0) & tenByTen,
+      'A': Offset.zero & tenByTen,
       'B': const Offset(20.0, 0.0) & tenByTen,
       'C': const Offset(40.0, 0.0) & tenByTen,
       'D': const Offset(60.0, 0.0) & tenByTen,
@@ -277,7 +275,7 @@ void main() {
       } catch (error) {
         fail(
           'Test failed with i == $i, angle == ${angle / math.pi}π\n'
-          '$error'
+          '$error',
         );
       }
     }
@@ -291,36 +289,34 @@ class TraversalTester {
   final SemanticsTester semantics;
 
   Future<void> test({
-    TextDirection textDirection,
-    Map<String, Rect> children,
-    String expectedTraversal,
+    required TextDirection textDirection,
+    required Map<String, Rect> children,
+    required String expectedTraversal,
   }) async {
     assert(children is LinkedHashMap);
     await tester.pumpWidget(
-        Container(
-            child: Directionality(
-              textDirection: textDirection,
-              child: Semantics(
-                textDirection: textDirection,
-                child: CustomMultiChildLayout(
-                  delegate: TestLayoutDelegate(children),
-                  children: children.keys.map<Widget>((String label) {
-                    return LayoutId(
-                      id: label,
-                      child: Semantics(
-                        container: true,
-                        explicitChildNodes: true,
-                        label: label,
-                        child: SizedBox(
-                          width: children[label].width,
-                          height: children[label].height,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+        Directionality(
+          textDirection: textDirection,
+          child: Semantics(
+            textDirection: textDirection,
+            child: CustomMultiChildLayout(
+              delegate: TestLayoutDelegate(children),
+              children: children.keys.map<Widget>((String label) {
+                return LayoutId(
+                  id: label,
+                  child: Semantics(
+                    container: true,
+                    explicitChildNodes: true,
+                    label: label,
+                    child: SizedBox(
+                      width: children[label]!.width,
+                      height: children[label]!.height,
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
+          ),
         ),
     );
 
